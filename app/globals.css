@@ -1,0 +1,107 @@
+@import "tailwindcss";
+
+/* ============================================================
+ * Design tokens — 5 themes as CSS-variable sets, applied via
+ * data-theme on <html>. Each is light/dark-safe. The accent is
+ * independent and supplied as an inline --accent on <html>.
+ * ==========================================================*/
+
+:root {
+  color-scheme: light;
+  --success: #3fb984;
+  --warn: #e0a53d;
+  --alert: #e5675f;
+  /* sensible defaults before a theme is resolved */
+  --bg: #faf9f6;
+  --surface: #ffffff;
+  --surface2: #f3f1ec;
+  --text: #1c1b1a;
+  --muted: #6b6864;
+  --border: #eceae4;
+  --accent: #4f6bed;
+}
+
+[data-theme="cloud"] {
+  color-scheme: light;
+  --bg: #faf9f6;
+  --surface: #ffffff;
+  --surface2: #f3f1ec;
+  --text: #1c1b1a;
+  --muted: #6b6864;
+  --border: #eceae4;
+  --accent: #4f6bed;
+}
+
+[data-theme="noir"] {
+  color-scheme: dark;
+  --bg: #0f0f11;
+  --surface: #1a1a1e;
+  --surface2: #232329;
+  --text: #f4f3f1;
+  --muted: #908f95;
+  --border: #2a2a30;
+  --accent: #7c8cff;
+}
+
+[data-theme="peach"] {
+  color-scheme: light;
+  --bg: #fff6f0;
+  --surface: #ffffff;
+  --surface2: #fbefe7;
+  --text: #3d2b25;
+  --muted: #9a7c70;
+  --border: #f6e3d8;
+  --accent: #f0916b;
+}
+
+[data-theme="matcha"] {
+  color-scheme: light;
+  --bg: #f4f6ef;
+  --surface: #ffffff;
+  --surface2: #edf1e6;
+  --text: #20271c;
+  --muted: #6e7a63;
+  --border: #e2e8d6;
+  --accent: #719a5f;
+}
+
+[data-theme="mono"] {
+  color-scheme: light;
+  --bg: #fafafa;
+  --surface: #ffffff;
+  --surface2: #f1f1f1;
+  --text: #0a0a0a;
+  --muted: #5a5a5a;
+  --border: #e4e4e4;
+  --accent: #111111;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-inter), "Inter", system-ui, -apple-system, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  transition:
+    background-color 0.2s ease,
+    color 0.2s ease;
+}
+
+/* hide scrollbars on scroll surfaces, matching the design */
+.pz-scroll {
+  scrollbar-width: none;
+}
+.pz-scroll::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+}
