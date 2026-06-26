@@ -18,3 +18,18 @@ export async function saveAccent(accent: string): Promise<Result> {
   await updateMyProfile({ accentColor: accent });
   return { ok: true };
 }
+
+/**
+ * Persist the user's IANA timezone (detected client-side) so "today" is
+ * computed against their local day. Validated against the runtime's tz set.
+ */
+export async function saveTimezone(timezone: string): Promise<Result> {
+  try {
+    // Throws RangeError for an unknown timezone.
+    new Intl.DateTimeFormat("en-CA", { timeZone: timezone });
+  } catch {
+    return { ok: false };
+  }
+  await updateMyProfile({ timezone });
+  return { ok: true };
+}
