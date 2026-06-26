@@ -58,6 +58,20 @@ export default function WidgetIcon({ name, size = 19 }: Props) {
           <path d="M21 5.5A1.5 1.5 0 0 0 19.5 4H13v16h6.5A1.5 1.5 0 0 0 21 18.5z" />
         </svg>
       );
+    case "checklist":
+      return (
+        <svg {...common}>
+          <path d="M9 6h11M9 12h11M9 18h11" />
+          <path d="M4 5.5 5 6.5 6.5 4.5M4 11.5l1 1 1.5-2M4 17.5l1 1 1.5-2" />
+        </svg>
+      );
+    case "tasks":
+      return (
+        <svg {...common}>
+          <rect x="4" y="4" width="16" height="16" rx="3" />
+          <path d="M8.5 12l2.2 2.2L15.5 9.5" />
+        </svg>
+      );
     case "counter":
     default:
       return (

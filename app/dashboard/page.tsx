@@ -1,14 +1,8 @@
 import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import Dashboard from "@/components/Dashboard";
-import {
-  getMyProfile,
-  getTodayLogs,
-  listMyWidgets,
-  toClientWidget,
-} from "@/lib/db/scoped";
-import { todayInTimeZone } from "@/lib/widgets/date";
-import type { LogState } from "@/lib/widgets/types";
+import { getMyProfile } from "@/lib/db/scoped";
+import { loadDashboard } from "@/lib/widgets/dashboard-data";
 
 function greetingForHour(hour: number): string {
   if (hour < 12) return "Morning";
@@ -21,36 +15,17 @@ export default async function DashboardPage() {
   if (!session?.user) redirect("/signin");
 
   const profile = await getMyProfile();
-  const tz = profile?.timezone || "UTC";
-  const today = todayInTimeZone(tz);
-
-  const [widgetRows, todaysLogs] = await Promise.all([
-    listMyWidgets(),
-    getTodayLogs(today),
-  ]);
-
-  const widgets = widgetRows.map(toClientWidget);
-  const logs: Record<string, LogState> = {};
-  for (const l of todaysLogs) {
-    logs[l.widgetId] = {
-      value: l.value != null ? Number(l.value) : null,
-      completed: l.completed,
-    };
-  }
+  const data = await loadDashboard();
+  const tz = data.tz;
 
   const name =
     profile?.displayName?.split(" ")[0] ??
     session?.user?.name?.split(" ")[0] ??
     "there";
 
-  // Greeting/date reflect the user's local day.
   const now = new Date();
   const hour = Number(
-    new Intl.DateTimeFormat("en-US", {
-      timeZone: tz,
-      hour: "numeric",
-      hour12: false,
-    }).format(now),
+    new Intl.DateTimeFormat("en-US", { timeZone: tz, hour: "numeric", hour12: false }).format(now),
   );
   const dateStr = new Intl.DateTimeFormat("en-US", {
     timeZone: tz,
@@ -64,9 +39,14 @@ export default async function DashboardPage() {
       name={name}
       greeting={greetingForHour(hour)}
       dateStr={dateStr}
+      today={data.today}
       profileTimezone={tz}
-      initialWidgets={widgets}
-      initialLogs={logs}
+      initialWidgets={data.widgets}
+      initialLogs={data.logs}
+      initialStreaks={data.streaks}
+      initialHeatmaps={data.heatmaps}
+      initialChecklists={data.checklists}
+      initialTasks={data.tasks}
     />
   );
 }
