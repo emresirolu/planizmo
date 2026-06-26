@@ -93,6 +93,10 @@ export const integrationProviderEnum = pgEnum("integration_provider", [
   "fitbit",
   "google_health",
 ]);
+export const assistantRoleEnum = pgEnum("assistant_role", [
+  "user",
+  "assistant",
+]);
 
 /* ============================================================
  * Application tables — every table carries user_id -> users.id
@@ -273,6 +277,22 @@ export const tasks = pgTable("tasks", {
   completed: boolean("completed").notNull().default(false),
   completedAt: timestamp("completed_at", { withTimezone: true }),
   position: integer("position").notNull().default(0),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});
+
+/* ---- AI assistant rail (Milestone 5) ---- */
+
+export const assistantMessages = pgTable("assistant_messages", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  userId: text("user_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  role: assistantRoleEnum("role").notNull(),
+  content: text("content").notNull(),
+  // The data snapshot this turn was grounded on (+ an `op` discriminator).
+  contextJson: jsonb("context_json"),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),
