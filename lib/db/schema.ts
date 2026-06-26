@@ -79,13 +79,15 @@ export const widgetTypeEnum = pgEnum("widget_type", [
   "mood",
   "health",
   "reading",
+  "checklist",
+  "tasks",
 ]);
 export const scheduleEnum = pgEnum("schedule", [
   "daily",
   "weekdays",
   "times_per_week",
 ]);
-export const widgetSizeEnum = pgEnum("widget_size", ["1x1", "2x1"]);
+export const widgetSizeEnum = pgEnum("widget_size", ["1x1", "2x1", "2x2"]);
 export const widgetSourceEnum = pgEnum("widget_source", ["manual", "fitbit"]);
 export const integrationProviderEnum = pgEnum("integration_provider", [
   "fitbit",
@@ -152,20 +154,26 @@ export const logs = pgTable(
   (t) => [uniqueIndex("logs_widget_date_unq").on(t.widgetId, t.date)],
 );
 
-export const streaks = pgTable("streaks", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  userId: text("user_id")
-    .notNull()
-    .references(() => users.id, { onDelete: "cascade" }),
-  widgetId: uuid("widget_id")
-    .notNull()
-    .references(() => widgets.id, { onDelete: "cascade" }),
-  currentStreak: integer("current_streak").notNull().default(0),
-  longestStreak: integer("longest_streak").notNull().default(0),
-  strength: numeric("strength").notNull().default("0"),
-  lastCompletedDate: date("last_completed_date"),
-  freezesAvailable: integer("freezes_available").notNull().default(0),
-});
+export const streaks = pgTable(
+  "streaks",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    widgetId: uuid("widget_id")
+      .notNull()
+      .references(() => widgets.id, { onDelete: "cascade" }),
+    currentStreak: integer("current_streak").notNull().default(0),
+    longestStreak: integer("longest_streak").notNull().default(0),
+    strength: numeric("strength").notNull().default("0"),
+    lastCompletedDate: date("last_completed_date"),
+    freezesAvailable: integer("freezes_available").notNull().default(0),
+    // 'YYYY-MM' of the last monthly freeze decrement (idempotency for the cron).
+    lastFreezeMonth: text("last_freeze_month"),
+  },
+  (t) => [uniqueIndex("streaks_widget_unq").on(t.widgetId)],
+);
 
 export const goals = pgTable("goals", {
   id: uuid("id").primaryKey().defaultRandom(),
@@ -208,4 +216,64 @@ export const layouts = pgTable("layouts", {
     .notNull()
     .references(() => users.id, { onDelete: "cascade" }),
   layoutJson: jsonb("layout_json"),
+});
+
+/* ---- checklist widget (resettable per day) ---- */
+
+export const checklistItems = pgTable("checklist_items", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  userId: text("user_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  widgetId: uuid("widget_id")
+    .notNull()
+    .references(() => widgets.id, { onDelete: "cascade" }),
+  label: text("label").notNull(),
+  position: integer("position").notNull().default(0),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});
+
+export const checklistLogs = pgTable(
+  "checklist_logs",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    widgetId: uuid("widget_id")
+      .notNull()
+      .references(() => widgets.id, { onDelete: "cascade" }),
+    itemId: uuid("item_id")
+      .notNull()
+      .references(() => checklistItems.id, { onDelete: "cascade" }),
+    date: date("date").notNull(),
+    completed: boolean("completed").notNull().default(true),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [uniqueIndex("checklist_logs_item_date_unq").on(t.itemId, t.date)],
+);
+
+/* ---- tasks widget (one-off, due dates, never streak-based) ---- */
+
+export const tasks = pgTable("tasks", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  userId: text("user_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  widgetId: uuid("widget_id").references(() => widgets.id, {
+    onDelete: "cascade",
+  }),
+  title: text("title").notNull(),
+  notes: text("notes"),
+  dueDate: date("due_date"),
+  completed: boolean("completed").notNull().default(false),
+  completedAt: timestamp("completed_at", { withTimezone: true }),
+  position: integer("position").notNull().default(0),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
 });

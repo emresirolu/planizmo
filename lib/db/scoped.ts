@@ -1,8 +1,16 @@
 import "server-only";
-import { and, desc, eq, type SQL } from "drizzle-orm";
+import { and, asc, desc, eq, gte, type SQL } from "drizzle-orm";
 import { auth } from "@/auth";
 import { db } from "./index";
-import { logs, profiles, widgets } from "./schema";
+import {
+  checklistItems,
+  checklistLogs,
+  logs,
+  profiles,
+  streaks,
+  tasks,
+  widgets,
+} from "./schema";
 import type { ClientWidget } from "@/lib/widgets/types";
 
 /**
@@ -207,4 +215,254 @@ export async function upsertLog(
     })
     .returning();
   return row;
+}
+
+export async function updateWidget(
+  widgetId: string,
+  patch: Partial<{
+    title: string;
+    target: number | null;
+    unit: string | null;
+    schedule: Widget["schedule"];
+    size: Widget["size"];
+  }>,
+): Promise<Widget | null> {
+  const userId = await requireUserId();
+  const [row] = await db
+    .update(widgets)
+    .set(patch)
+    .where(and(eq(widgets.userId, userId), eq(widgets.id, widgetId)))
+    .returning();
+  return row ?? null;
+}
+
+/** All of the user's logs since `fromDate` (inclusive). For heatmaps/streaks. */
+export async function getLogsSince(fromDate: string): Promise<Log[]> {
+  const userId = await requireUserId();
+  return db
+    .select()
+    .from(logs)
+    .where(and(eq(logs.userId, userId), gte(logs.date, fromDate)));
+}
+
+/* ---------------------------------------------------------------------------
+ * Streaks
+ * ------------------------------------------------------------------------- */
+
+export type Streak = typeof streaks.$inferSelect;
+
+export async function listStreaks(): Promise<Streak[]> {
+  const userId = await requireUserId();
+  return db.select().from(streaks).where(eq(streaks.userId, userId));
+}
+
+export async function getStreak(widgetId: string): Promise<Streak | null> {
+  const userId = await requireUserId();
+  const [row] = await db
+    .select()
+    .from(streaks)
+    .where(and(eq(streaks.userId, userId), eq(streaks.widgetId, widgetId)))
+    .limit(1);
+  return row ?? null;
+}
+
+export async function upsertStreak(
+  widgetId: string,
+  data: {
+    currentStreak: number;
+    longestStreak: number;
+    strength: number;
+    lastCompletedDate: string | null;
+    freezesAvailable?: number;
+    lastFreezeMonth?: string | null;
+  },
+): Promise<Streak> {
+  const userId = await requireUserId();
+  const set: Record<string, unknown> = {
+    currentStreak: data.currentStreak,
+    longestStreak: data.longestStreak,
+    strength: String(data.strength),
+    lastCompletedDate: data.lastCompletedDate,
+  };
+  if (data.freezesAvailable !== undefined)
+    set.freezesAvailable = data.freezesAvailable;
+  if (data.lastFreezeMonth !== undefined)
+    set.lastFreezeMonth = data.lastFreezeMonth;
+
+  const [row] = await db
+    .insert(streaks)
+    .values({ userId, widgetId, ...(set as object) })
+    .onConflictDoUpdate({ target: streaks.widgetId, set })
+    .returning();
+  return row;
+}
+
+/* ---------------------------------------------------------------------------
+ * Checklist items + logs
+ * ------------------------------------------------------------------------- */
+
+export type ChecklistItemRow = typeof checklistItems.$inferSelect;
+export type ChecklistLogRow = typeof checklistLogs.$inferSelect;
+
+export async function listChecklistItems(): Promise<ChecklistItemRow[]> {
+  const userId = await requireUserId();
+  return db
+    .select()
+    .from(checklistItems)
+    .where(eq(checklistItems.userId, userId))
+    .orderBy(asc(checklistItems.position), asc(checklistItems.createdAt));
+}
+
+export async function addChecklistItem(
+  widgetId: string,
+  label: string,
+): Promise<ChecklistItemRow | null> {
+  const userId = await requireUserId();
+  const owned = await getMyWidget(widgetId);
+  if (!owned) return null;
+
+  const [last] = await db
+    .select({ position: checklistItems.position })
+    .from(checklistItems)
+    .where(
+      and(
+        eq(checklistItems.userId, userId),
+        eq(checklistItems.widgetId, widgetId),
+      ),
+    )
+    .orderBy(desc(checklistItems.position))
+    .limit(1);
+  const position = (last?.position ?? -1) + 1;
+
+  const [row] = await db
+    .insert(checklistItems)
+    .values({ userId, widgetId, label, position })
+    .returning();
+  return row;
+}
+
+export async function updateChecklistItem(
+  itemId: string,
+  label: string,
+): Promise<boolean> {
+  const userId = await requireUserId();
+  const updated = await db
+    .update(checklistItems)
+    .set({ label })
+    .where(and(eq(checklistItems.userId, userId), eq(checklistItems.id, itemId)))
+    .returning({ id: checklistItems.id });
+  return updated.length > 0;
+}
+
+export async function removeChecklistItem(itemId: string): Promise<boolean> {
+  const userId = await requireUserId();
+  const deleted = await db
+    .delete(checklistItems)
+    .where(and(eq(checklistItems.userId, userId), eq(checklistItems.id, itemId)))
+    .returning({ id: checklistItems.id });
+  return deleted.length > 0;
+}
+
+/** Checklist logs since `fromDate` (only completed ticks are stored). */
+export async function getChecklistLogsSince(
+  fromDate: string,
+): Promise<ChecklistLogRow[]> {
+  const userId = await requireUserId();
+  return db
+    .select()
+    .from(checklistLogs)
+    .where(
+      and(eq(checklistLogs.userId, userId), gte(checklistLogs.date, fromDate)),
+    );
+}
+
+export async function setChecklistLog(
+  itemId: string,
+  date: string,
+  completed: boolean,
+): Promise<{ widgetId: string } | null> {
+  const userId = await requireUserId();
+  // Verify the item belongs to the user and resolve its widget.
+  const [item] = await db
+    .select({ widgetId: checklistItems.widgetId })
+    .from(checklistItems)
+    .where(and(eq(checklistItems.userId, userId), eq(checklistItems.id, itemId)))
+    .limit(1);
+  if (!item) return null;
+
+  await db
+    .insert(checklistLogs)
+    .values({ userId, widgetId: item.widgetId, itemId, date, completed })
+    .onConflictDoUpdate({
+      target: [checklistLogs.itemId, checklistLogs.date],
+      set: { completed },
+    });
+  return { widgetId: item.widgetId };
+}
+
+/* ---------------------------------------------------------------------------
+ * Tasks
+ * ------------------------------------------------------------------------- */
+
+export type TaskRow = typeof tasks.$inferSelect;
+
+export async function listTasks(): Promise<TaskRow[]> {
+  const userId = await requireUserId();
+  return db
+    .select()
+    .from(tasks)
+    .where(eq(tasks.userId, userId))
+    .orderBy(asc(tasks.completed), asc(tasks.dueDate), asc(tasks.createdAt));
+}
+
+export async function addTask(input: {
+  widgetId: string | null;
+  title: string;
+  notes?: string | null;
+  dueDate?: string | null;
+}): Promise<TaskRow | null> {
+  const userId = await requireUserId();
+  if (input.widgetId) {
+    const owned = await getMyWidget(input.widgetId);
+    if (!owned) return null;
+  }
+  const [row] = await db
+    .insert(tasks)
+    .values({
+      userId,
+      widgetId: input.widgetId,
+      title: input.title,
+      notes: input.notes ?? null,
+      dueDate: input.dueDate ?? null,
+    })
+    .returning();
+  return row;
+}
+
+export async function updateTask(
+  taskId: string,
+  patch: Partial<{
+    title: string;
+    notes: string | null;
+    dueDate: string | null;
+    completed: boolean;
+    completedAt: Date | null;
+  }>,
+): Promise<boolean> {
+  const userId = await requireUserId();
+  const updated = await db
+    .update(tasks)
+    .set(patch)
+    .where(and(eq(tasks.userId, userId), eq(tasks.id, taskId)))
+    .returning({ id: tasks.id });
+  return updated.length > 0;
+}
+
+export async function deleteTask(taskId: string): Promise<boolean> {
+  const userId = await requireUserId();
+  const deleted = await db
+    .delete(tasks)
+    .where(and(eq(tasks.userId, userId), eq(tasks.id, taskId)))
+    .returning({ id: tasks.id });
+  return deleted.length > 0;
 }
