@@ -3,6 +3,7 @@ import { and, asc, desc, eq, gte, type SQL } from "drizzle-orm";
 import { auth } from "@/auth";
 import { db } from "./index";
 import {
+  assistantMessages,
   checklistItems,
   checklistLogs,
   logs,
@@ -465,4 +466,42 @@ export async function deleteTask(taskId: string): Promise<boolean> {
     .where(and(eq(tasks.userId, userId), eq(tasks.id, taskId)))
     .returning({ id: tasks.id });
   return deleted.length > 0;
+}
+
+/* ---------------------------------------------------------------------------
+ * Assistant messages (AI rail)
+ * ------------------------------------------------------------------------- */
+
+export type AssistantMessage = typeof assistantMessages.$inferSelect;
+
+export async function addAssistantMessage(input: {
+  role: "user" | "assistant";
+  content: string;
+  contextJson: unknown;
+}): Promise<AssistantMessage> {
+  const userId = await requireUserId();
+  const [row] = await db
+    .insert(assistantMessages)
+    .values({
+      userId,
+      role: input.role,
+      content: input.content,
+      contextJson: input.contextJson as object,
+    })
+    .returning();
+  return row;
+}
+
+/** Recent messages, newest-last (chronological). */
+export async function listRecentAssistantMessages(
+  limit = 50,
+): Promise<AssistantMessage[]> {
+  const userId = await requireUserId();
+  const rows = await db
+    .select()
+    .from(assistantMessages)
+    .where(eq(assistantMessages.userId, userId))
+    .orderBy(desc(assistantMessages.createdAt))
+    .limit(limit);
+  return rows.reverse();
 }

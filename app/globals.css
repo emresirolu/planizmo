@@ -97,6 +97,18 @@ body {
     color 0.2s ease;
 }
 
+@keyframes pulse {
+  0%,
+  100% {
+    opacity: 0.35;
+    transform: scale(0.85);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
 /* hide scrollbars on scroll surfaces, matching the design */
 .pz-scroll {
   scrollbar-width: none;
