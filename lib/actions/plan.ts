@@ -17,6 +17,34 @@ type ApproveResult =
 
 const norm = (s: string) => s.trim().toLowerCase();
 
+/** Quick capture: drop a task into the user's tasks widget (create one if none). */
+export async function quickCaptureTask(
+  title: string,
+): Promise<{ ok: boolean }> {
+  const t = title.trim();
+  if (!t) return { ok: false };
+  try {
+    let w = await firstTasksWidget();
+    if (!w) {
+      w = await addWidget({
+        type: "tasks",
+        title: "Inbox",
+        icon: "tasks",
+        schedule: "daily",
+        target: null,
+        unit: null,
+        size: "2x2",
+      });
+    }
+    await addTask({ widgetId: w.id, title: t.slice(0, 120) });
+    revalidatePath("/dashboard");
+    revalidatePath("/dashboard/lists");
+    return { ok: true };
+  } catch {
+    return { ok: false };
+  }
+}
+
 /**
  * Approve a week plan: create concrete tasks for new task-items (idempotently),
  * persist any edits, and mark the row approved.

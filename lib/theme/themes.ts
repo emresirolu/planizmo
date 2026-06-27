@@ -1,15 +1,16 @@
 /**
- * Theme + accent design tokens (from the Planizmo design system).
+ * Theme + accent design tokens (from the Planizmo Web design system).
  *
  * Each theme is a CSS-variable token set applied via `data-theme` on <html>.
  * The accent color is independent of the theme and applied as an inline
- * `--accent` custom property. The swatch values below are only used to render
- * the previews in Settings — the live tokens live in app/globals.css.
+ * `--accent` custom property. The swatch values below render the Settings
+ * previews — the live tokens live in app/globals.css.
  */
 
 export const THEMES = [
   { id: "cloud", name: "Cloud" },
   { id: "noir", name: "Noir" },
+  { id: "blush", name: "Blush" },
   { id: "peach", name: "Peach" },
   { id: "matcha", name: "Matcha" },
   { id: "mono", name: "Mono" },
@@ -26,12 +27,14 @@ export const THEME_PREVIEW: Record<
 > = {
   cloud: { bg: "#FAF9F6", surface: "#FFFFFF", border: "#ECEAE4", accent: "#4F6BED" },
   noir: { bg: "#0F0F11", surface: "#1A1A1E", border: "#2A2A30", accent: "#7C8CFF" },
+  blush: { bg: "#FFF4F8", surface: "#FFFFFF", border: "#FBE0EC", accent: "#F576A8" },
   peach: { bg: "#FFF6F0", surface: "#FFFFFF", border: "#F6E3D8", accent: "#F0916B" },
   matcha: { bg: "#F4F6EF", surface: "#FFFFFF", border: "#E2E8D6", accent: "#719A5F" },
   mono: { bg: "#FAFAFA", surface: "#FFFFFF", border: "#E4E4E4", accent: "#111111" },
 };
 
 export const ACCENTS = [
+  "#2E7D52",
   "#4F6BED",
   "#7C8CFF",
   "#F0916B",

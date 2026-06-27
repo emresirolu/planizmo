@@ -4,190 +4,175 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { signOutAction } from "@/lib/actions/auth";
 
-type Item = {
-  href: string;
-  label: string;
-  icon: React.ReactNode;
-  enabled: boolean;
+type NavItem = { href: string; label: string; icon: React.ReactNode };
+
+const S = {
+  fill: "none",
+  stroke: "currentColor",
+  strokeWidth: 1.75,
+  strokeLinecap: "round" as const,
+  strokeLinejoin: "round" as const,
+};
+const I = {
+  today: (
+    <svg width="19" height="19" viewBox="0 0 24 24" {...S}>
+      <circle cx="12" cy="12" r="4" />
+      <path d="M12 2v2M12 20v2M2 12h2M20 12h2M5 5l1.4 1.4M17.6 17.6 19 19M19 5l-1.4 1.4M6.4 17.6 5 19" />
+    </svg>
+  ),
+  planner: (
+    <svg width="19" height="19" viewBox="0 0 24 24" {...S}>
+      <rect x="3" y="4.5" width="18" height="16" rx="2.5" />
+      <path d="M3 9.5h18M8 2.5v4M16 2.5v4" />
+    </svg>
+  ),
+  goals: (
+    <svg width="19" height="19" viewBox="0 0 24 24" {...S}>
+      <circle cx="12" cy="12" r="9" />
+      <circle cx="12" cy="12" r="5" />
+      <circle cx="12" cy="12" r="1.4" />
+    </svg>
+  ),
+  health: (
+    <svg width="19" height="19" viewBox="0 0 24 24" {...S}>
+      <path d="M12 21s-7-4.4-9.3-9C1.3 9.4 2.4 6 5.6 6c2 0 3.3 1.3 4.4 3M12 21s7-4.4 9.3-9C22.7 9.4 21.6 6 18.4 6c-2 0-3.3 1.3-4.4 3" />
+    </svg>
+  ),
+  habits: (
+    <svg width="19" height="19" viewBox="0 0 24 24" {...S}>
+      <path d="M9 6h11M9 12h11M9 18h11" />
+      <circle cx="4.5" cy="6" r="1.3" />
+      <circle cx="4.5" cy="12" r="1.3" />
+      <circle cx="4.5" cy="18" r="1.3" />
+    </svg>
+  ),
+  lists: (
+    <svg width="19" height="19" viewBox="0 0 24 24" {...S}>
+      <path d="M9 6h11M9 12h11M9 18h11M4.5 6h.01M4.5 12h.01M4.5 18h.01" />
+    </svg>
+  ),
+  ai: (
+    <svg width="19" height="19" viewBox="0 0 24 24" fill="currentColor">
+      <path d="M12 3l1.7 4.7L18 9l-4.3 1.3L12 15l-1.7-4.7L6 9l4.3-1.3z" />
+    </svg>
+  ),
 };
 
-const items: Item[] = [
-  {
-    href: "/dashboard",
-    label: "Home",
-    enabled: true,
-    icon: (
-      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.85" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M3 10.5 12 3l9 7.5" />
-        <path d="M5 9.5V20a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V9.5" />
-        <path d="M9.5 21v-6h5v6" />
-      </svg>
-    ),
-  },
-  {
-    href: "/dashboard/planner",
-    label: "Planner",
-    enabled: true,
-    icon: (
-      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.85" strokeLinecap="round" strokeLinejoin="round">
-        <rect x="3" y="4.5" width="18" height="16" rx="2.5" />
-        <path d="M3 9.5h18M8 2.5v4M16 2.5v4" />
-        <path d="M8 13h3M8 16.5h6" />
-      </svg>
-    ),
-  },
-  {
-    href: "#",
-    label: "Insights",
-    enabled: false,
-    icon: (
-      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.85" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M4 20V4M4 20h16" />
-        <path d="M8 16v-4M13 16V8M18 16v-7" />
-      </svg>
-    ),
-  },
-  {
-    href: "/dashboard/settings",
-    label: "Settings",
-    enabled: true,
-    icon: (
-      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.85" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M4 7h9M18 7h2M4 12h2M11 12h9M4 17h7M16 17h4" />
-        <circle cx="16" cy="7" r="2" />
-        <circle cx="9" cy="12" r="2" />
-        <circle cx="14" cy="17" r="2" />
-      </svg>
-    ),
-  },
+const ITEMS: NavItem[] = [
+  { href: "/dashboard", label: "Today", icon: I.today },
+  { href: "/dashboard/planner", label: "Planner", icon: I.planner },
+  { href: "/dashboard/goals", label: "Goals", icon: I.goals },
+  { href: "/dashboard/health", label: "Health", icon: I.health },
+  { href: "/dashboard/habits", label: "Habits", icon: I.habits },
+  { href: "/dashboard/lists", label: "Lists", icon: I.lists },
 ];
 
-function isActive(pathname: string, href: string, enabled: boolean): boolean {
-  if (!enabled) return false;
+function active(pathname: string, href: string): boolean {
   if (href === "/dashboard") return pathname === "/dashboard";
-  return pathname.startsWith(href);
+  return pathname === href || pathname.startsWith(href + "/");
 }
 
-/** Bottom tab bar — mobile only. */
-export function BottomNav() {
+function openAssistant() {
+  window.dispatchEvent(new Event("planizmo:assistant"));
+}
+
+export function SideNav({ name }: { name: string }) {
   const pathname = usePathname();
   return (
-    <nav
-      className="sticky bottom-0 z-10 flex border-t md:hidden"
+    <aside
+      className="sticky top-0 hidden h-dvh w-[212px] flex-none flex-col border-r px-4 py-5 md:flex"
       style={{ background: "var(--surface)", borderColor: "var(--border)" }}
     >
-      {items.map((item) => {
-        const active = isActive(pathname, item.href, item.enabled);
-        const inner = (
-          <span
-            className="flex flex-1 flex-col items-center gap-1 py-3"
-            style={{
-              color: active ? "var(--accent)" : "var(--muted)",
-              opacity: item.enabled ? 1 : 0.45,
-            }}
-          >
-            {item.icon}
-            <span className="text-[11px]" style={{ fontWeight: active ? 500 : 400 }}>
-              {item.label}
-            </span>
-          </span>
-        );
-        return item.enabled ? (
-          <Link key={item.label} href={item.href} className="flex flex-1">
-            {inner}
+      <div className="flex items-center gap-2.5 px-2 pb-6">
+        <span className="flex h-[30px] w-[30px] items-center justify-center rounded-[9px] text-white" style={{ background: "var(--accent)" }}>
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="currentColor"><path d="M12 3l1.7 4.7L18 9l-4.3 1.3L12 15l-1.7-4.7L6 9l4.3-1.3z" /></svg>
+        </span>
+        <span className="text-base font-semibold tracking-tight">planizmo</span>
+      </div>
+
+      <nav className="flex flex-col gap-[3px]">
+        {ITEMS.map((it) => {
+          const on = active(pathname, it.href);
+          return (
+            <Link
+              key={it.label}
+              href={it.href}
+              className="flex items-center gap-3 rounded-[11px] px-3 py-2.5 text-sm"
+              style={{
+                color: on ? "var(--accent)" : "var(--text)",
+                background: on ? "color-mix(in srgb, var(--accent) 11%, transparent)" : "transparent",
+                fontWeight: on ? 600 : 500,
+              }}
+            >
+              <span className="flex h-5 w-5 flex-none items-center justify-center">{it.icon}</span>
+              {it.label}
+            </Link>
+          );
+        })}
+        <button
+          type="button"
+          onClick={openAssistant}
+          className="flex items-center gap-3 rounded-[11px] px-3 py-2.5 text-left text-sm"
+          style={{ color: "var(--text)", fontWeight: 500, cursor: "pointer" }}
+        >
+          <span className="flex h-5 w-5 flex-none items-center justify-center">{I.ai}</span>
+          AI assistant
+        </button>
+      </nav>
+
+      <div className="flex-1" />
+
+      <Link href="/dashboard/settings" className="flex items-center gap-2.5 rounded-[11px] px-2 py-2.5" style={{ cursor: "pointer" }}>
+        <span className="flex h-8 w-8 flex-none items-center justify-center rounded-full text-[13px] font-semibold" style={{ background: "var(--surface2)", color: "var(--accent)" }}>
+          {name.charAt(0).toUpperCase()}
+        </span>
+        <span className="flex-1 truncate text-sm font-medium">{name}</span>
+        <svg width="16" height="16" viewBox="0 0 24 24" {...S} stroke="var(--muted)"><path d="M6 9l6 6 6-6" /></svg>
+      </Link>
+      <div className="mx-1 my-2.5 h-px" style={{ background: "var(--border)" }} />
+      <Link href="/dashboard/settings" className="flex items-center gap-3 px-2 py-2.5 text-sm" style={{ color: "var(--muted)" }}>
+        <svg width="18" height="18" viewBox="0 0 24 24" {...S}><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.6 1.6 0 0 0 .3 1.8 2 2 0 1 1-2.8 2.8 1.6 1.6 0 0 0-2.8 1.1 2 2 0 1 1-4 0 1.6 1.6 0 0 0-2.8-1.1 2 2 0 1 1-2.8-2.8A1.6 1.6 0 0 0 4.6 15a2 2 0 1 1 0-4 1.6 1.6 0 0 0 1.1-2.8 2 2 0 1 1 2.8-2.8A1.6 1.6 0 0 0 11.3 4.6a2 2 0 1 1 4 0 1.6 1.6 0 0 0 2.8 1.1 2 2 0 1 1 2.8 2.8A1.6 1.6 0 0 0 19.4 11a2 2 0 1 1 0 4z" /></svg>
+        Settings
+      </Link>
+      <button type="button" onClick={openAssistant} className="flex items-center gap-3 px-2 py-2.5 text-left text-sm" style={{ color: "var(--muted)", cursor: "pointer" }}>
+        <svg width="18" height="18" viewBox="0 0 24 24" {...S}><circle cx="12" cy="12" r="9" /><path d="M9.2 9a2.8 2.8 0 0 1 5.4 1c0 1.9-2.8 2.8-2.8 2.8M12 17h.01" /></svg>
+        Help &amp; feedback
+      </button>
+    </aside>
+  );
+}
+
+export function BottomNav() {
+  const pathname = usePathname();
+  const items = ITEMS.slice(0, 4); // Today, Planner, Goals, Health
+  return (
+    <nav className="sticky bottom-0 z-10 flex border-t md:hidden" style={{ background: "var(--surface)", borderColor: "var(--border)" }}>
+      {items.map((it) => {
+        const on = active(pathname, it.href);
+        return (
+          <Link key={it.label} href={it.href} className="flex flex-1 flex-col items-center gap-1 py-3" style={{ color: on ? "var(--accent)" : "var(--muted)" }}>
+            {it.icon}
+            <span className="text-[11px]" style={{ fontWeight: on ? 500 : 400 }}>{it.label}</span>
           </Link>
-        ) : (
-          <span key={item.label} className="flex flex-1 cursor-default" aria-disabled title="Coming soon">
-            {inner}
-          </span>
         );
       })}
     </nav>
   );
 }
 
-/** Left sidebar — desktop (md+) only. */
-export function SideNav() {
-  const pathname = usePathname();
-  return (
-    <aside
-      className="sticky top-0 hidden h-dvh w-60 flex-none flex-col border-r px-3 py-5 md:flex"
-      style={{ background: "var(--surface)", borderColor: "var(--border)" }}
-    >
-      <div className="mb-6 flex items-center gap-2.5 px-2">
-        <span
-          className="flex h-7 w-7 items-center justify-center rounded-lg text-white"
-          style={{ background: "var(--accent)" }}
-        >
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
-            <path d="M12 3l1.7 4.7L18 9l-4.3 1.3L12 15l-1.7-4.7L6 9l4.3-1.3z" />
-          </svg>
-        </span>
-        <span className="text-[15px] font-medium tracking-tight">planizmo</span>
-      </div>
-
-      <nav className="flex flex-1 flex-col gap-1">
-        {items.map((item) => {
-          const active = isActive(pathname, item.href, item.enabled);
-          const inner = (
-            <span
-              className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm transition-colors"
-              style={{
-                color: active ? "var(--accent)" : "var(--muted)",
-                background: active ? "var(--surface2)" : "transparent",
-                fontWeight: active ? 500 : 400,
-                opacity: item.enabled ? 1 : 0.45,
-              }}
-            >
-              {item.icon}
-              {item.label}
-            </span>
-          );
-          return item.enabled ? (
-            <Link key={item.label} href={item.href}>
-              {inner}
-            </Link>
-          ) : (
-            <span key={item.label} className="cursor-default" aria-disabled title="Coming soon">
-              {inner}
-            </span>
-          );
-        })}
-      </nav>
-
-      <SignOutButton variant="sidebar" />
-    </aside>
-  );
-}
-
-export function SignOutButton({
-  variant = "pill",
-}: {
-  variant?: "pill" | "sidebar";
-}) {
+export function SignOutButton({ variant = "pill" }: { variant?: "pill" | "row" }) {
   return (
     <form action={signOutAction}>
       <button
         type="submit"
         className={
-          variant === "sidebar"
-            ? "flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm transition-colors"
-            : "rounded-full border px-3.5 py-1.5 text-[13px] transition-colors"
+          variant === "row"
+            ? "flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm"
+            : "rounded-full border px-3.5 py-1.5 text-[13px]"
         }
-        style={
-          variant === "sidebar"
-            ? { color: "var(--muted)", cursor: "pointer" }
-            : {
-                borderColor: "var(--border)",
-                color: "var(--muted)",
-                cursor: "pointer",
-              }
-        }
+        style={{ borderColor: "var(--border)", color: "var(--muted)", cursor: "pointer" }}
       >
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.85" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M15 4h3a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1h-3" />
-          <path d="M10 17l5-5-5-5M15 12H3" />
-        </svg>
+        <svg width="18" height="18" viewBox="0 0 24 24" {...S}><path d="M15 4h3a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1h-3" /><path d="M10 17l5-5-5-5M15 12H3" /></svg>
         Sign out
       </button>
     </form>

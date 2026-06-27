@@ -24,8 +24,8 @@ export default async function SignInPage() {
               className="mt-2 text-[15px] leading-relaxed"
               style={{ color: "var(--muted)" }}
             >
-              The cleanest, calmest way to track your life. Sign in to build
-              your dashboard.
+              Your calm AI planner — it lays out your day, plans your week, and
+              keeps you on track. Sign in to get started.
             </p>
           </div>
         </div>
