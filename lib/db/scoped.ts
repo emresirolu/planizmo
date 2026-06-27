@@ -7,6 +7,7 @@ import {
   checklistItems,
   checklistLogs,
   goals,
+  layouts,
   logs,
   profiles,
   streaks,
@@ -175,6 +176,34 @@ export async function addWidget(values: {
     .values({ ...values, userId, position, source: "manual" })
     .returning();
   return row;
+}
+
+/* ---------------------------------------------------------------------------
+ * Layout (grid arrangement snapshot, per the existing layouts table)
+ * ------------------------------------------------------------------------- */
+
+export async function getLayout(): Promise<Record<string, unknown> | null> {
+  const userId = await requireUserId();
+  const [row] = await db
+    .select({ layoutJson: layouts.layoutJson })
+    .from(layouts)
+    .where(eq(layouts.userId, userId))
+    .limit(1);
+  return (row?.layoutJson as Record<string, unknown> | null) ?? null;
+}
+
+export async function saveLayout(json: Record<string, unknown>): Promise<void> {
+  const userId = await requireUserId();
+  const [existing] = await db
+    .select({ id: layouts.id })
+    .from(layouts)
+    .where(eq(layouts.userId, userId))
+    .limit(1);
+  if (existing) {
+    await db.update(layouts).set({ layoutJson: json }).where(eq(layouts.id, existing.id));
+  } else {
+    await db.insert(layouts).values({ userId, layoutJson: json });
+  }
 }
 
 /** Reorder widgets by setting position to the index in `orderedIds`. */

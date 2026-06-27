@@ -5,6 +5,7 @@ import CompletionRing from "./CompletionRing";
 import WidgetCard, { type WidgetHandlers } from "./WidgetCard";
 import AddWidgetSheet from "./AddWidgetSheet";
 import EditWidgetSheet from "./EditWidgetSheet";
+import ArrangeGrid from "./ArrangeGrid";
 import { isScheduledToday, nextLogState } from "@/lib/widgets/logic";
 import {
   isStreakType,
@@ -15,6 +16,7 @@ import {
   type LogState,
   type StreakStats,
   type Task,
+  type WidgetSize,
 } from "@/lib/widgets/types";
 import {
   addChecklistItemAction,
@@ -24,6 +26,8 @@ import {
   removeChecklistItemAction,
   removeWidgetAction,
   renameChecklistItemAction,
+  reorderWidgetsAction,
+  resizeWidgetAction,
   toggleChecklistItemAction,
   toggleTaskAction,
   updateTaskAction,
@@ -70,6 +74,7 @@ export default function Dashboard(props: Props) {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [adding, setAdding] = useState(false);
   const [editing, setEditing] = useState<ClientWidget | null>(null);
+  const [arranging, setArranging] = useState(false);
   const [, startTransition] = useTransition();
 
   useEffect(() => {
@@ -233,6 +238,24 @@ export default function Dashboard(props: Props) {
       if (!res.ok) setWidgets(prev);
     });
   }
+  // arrange mode: reorder the visible subset, preserving hidden widgets' slots
+  function handleReorder(orderedVisibleIds: string[]) {
+    const visible = new Set(orderedVisibleIds);
+    const queue = [...orderedVisibleIds];
+    const fullIds = widgets.map((w) => (visible.has(w.id) ? (queue.shift() as string) : w.id));
+    const byId = new Map(widgets.map((w) => [w.id, w]));
+    setWidgets(fullIds.map((id) => byId.get(id) as ClientWidget));
+    startTransition(() => void reorderWidgetsAction(fullIds));
+  }
+  function handleResize(id: string, size: WidgetSize) {
+    setWidgets((w) => w.map((x) => (x.id === id ? { ...x, size } : x)));
+    startTransition(() => void resizeWidgetAction(id, size));
+  }
+  function removeById(id: string) {
+    const w = widgets.find((x) => x.id === id);
+    if (w) handleRemove(w);
+  }
+
   function handleAdded(widget: ClientWidget) {
     setWidgets((w) => [...w, widget]);
     if (widget.type === "checklist")
@@ -271,12 +294,18 @@ export default function Dashboard(props: Props) {
   return (
     <div className="flex flex-col">
       {heading ? (
-        <div className="mb-5 flex items-center justify-between">
+        <div className="mb-5 flex items-center justify-between gap-2">
           <h1 className="text-[28px] font-medium tracking-tight">{heading}</h1>
-          <button type="button" onClick={() => setAdding(true)} className="flex items-center gap-1.5 rounded-full px-3.5 py-2 text-[13px] font-medium text-white" style={{ background: "var(--accent)", cursor: "pointer" }}>
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round"><path d="M12 5v14M5 12h14" /></svg>
-            Add widget
-          </button>
+          <div className="flex items-center gap-2">
+            <button type="button" onClick={() => setArranging((v) => !v)} className="flex items-center gap-1.5 rounded-full border px-3.5 py-2 text-[13px] font-medium" style={{ borderColor: arranging ? "var(--accent)" : "var(--border)", color: arranging ? "var(--accent)" : "var(--muted)", background: arranging ? "color-mix(in srgb, var(--accent) 10%, transparent)" : "transparent", cursor: "pointer" }}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round"><path d="M5 9l-2 3 2 3M19 9l2 3-2 3M9 5l3-2 3 2M9 19l3 2 3-2" /></svg>
+              {arranging ? "Done" : "Arrange"}
+            </button>
+            <button type="button" onClick={() => setAdding(true)} className="flex items-center gap-1.5 rounded-full px-3.5 py-2 text-[13px] font-medium text-white" style={{ background: "var(--accent)", cursor: "pointer" }}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round"><path d="M12 5v14M5 12h14" /></svg>
+              Add widget
+            </button>
+          </div>
         </div>
       ) : (
         <>
@@ -301,6 +330,14 @@ export default function Dashboard(props: Props) {
         </>
       )}
 
+      {arranging ? (
+        <>
+          <p className="mb-3 text-[13px]" style={{ color: "var(--muted)" }}>
+            Drag the handle to reorder · tap “resize” to cycle small / wide / large. Changes save automatically.
+          </p>
+          <ArrangeGrid widgets={visibleWidgets} onReorder={handleReorder} onResize={handleResize} onRemove={removeById} />
+        </>
+      ) : (
       <div
         className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-4"
         style={{ gridAutoRows: "minmax(9rem, auto)" }}
@@ -330,6 +367,7 @@ export default function Dashboard(props: Props) {
           <span className="text-sm">{visibleWidgets.length === 0 ? "Add your first widget" : "Add a widget"}</span>
         </button>
       </div>
+      )}
 
       {adding && <AddWidgetSheet onClose={() => setAdding(false)} onAdded={handleAdded} />}
       {editing && <EditWidgetSheet widget={editing} onClose={() => setEditing(null)} onSaved={handleSaved} />}
