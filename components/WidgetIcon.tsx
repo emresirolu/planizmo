@@ -72,6 +72,33 @@ export default function WidgetIcon({ name, size = 19 }: Props) {
           <path d="M8.5 12l2.2 2.2L15.5 9.5" />
         </svg>
       );
+    case "goal":
+      return (
+        <svg {...common}>
+          <circle cx="12" cy="12" r="9" />
+          <circle cx="12" cy="12" r="5" />
+          <circle cx="12" cy="12" r="1.4" />
+        </svg>
+      );
+    case "rocket":
+      return (
+        <svg {...common}>
+          <path d="M5 15c-1.5 1-2 4-2 4s3-.5 4-2c.6-.8.5-2-.2-2.7-.7-.7-1.9-.8-2.8.7M9 11a14 14 0 0 1 8-8c2.5 0 4 1.5 4 4a14 14 0 0 1-8 8z" />
+          <circle cx="15" cy="9" r="1.6" />
+        </svg>
+      );
+    case "bank":
+      return (
+        <svg {...common}>
+          <path d="M3 9.5 12 4l9 5.5M4 10v8M20 10v8M8 10v8M12 10v8M16 10v8M3 21h18" />
+        </svg>
+      );
+    case "health":
+      return (
+        <svg {...common}>
+          <path d="M12 21s-7-4.4-9.3-9C1.3 9.4 2.4 6 5.6 6c2 0 3.3 1.3 4.4 3M12 21s7-4.4 9.3-9C22.7 9.4 21.6 6 18.4 6c-2 0-3.3 1.3-4.4 3" />
+        </svg>
+      );
     case "counter":
     default:
       return (

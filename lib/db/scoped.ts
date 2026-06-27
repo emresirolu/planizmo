@@ -6,6 +6,7 @@ import {
   assistantMessages,
   checklistItems,
   checklistLogs,
+  goals,
   logs,
   profiles,
   streaks,
@@ -14,6 +15,7 @@ import {
   weekPlans,
   widgets,
 } from "./schema";
+import type { ClientGoal, GoalStatus } from "@/lib/goals/types";
 import type { WeekPlan } from "@/lib/plan/types";
 import type { ClientWidget } from "@/lib/widgets/types";
 import { todayInTimeZone } from "@/lib/widgets/date";
@@ -342,6 +344,108 @@ export async function getHealthSummary(): Promise<HealthSummary> {
     workout,
     provider: process.env.HEALTH_PROVIDER === "fitbit" ? "fitbit" : "mock",
   };
+}
+
+/* ---------------------------------------------------------------------------
+ * Goals (long-term objectives)
+ * ------------------------------------------------------------------------- */
+
+export type Goal = typeof goals.$inferSelect;
+
+export function toClientGoal(g: Goal): ClientGoal {
+  return {
+    id: g.id,
+    title: g.title,
+    icon: g.icon ?? "goal",
+    description: g.description,
+    progressPct: g.progressPct,
+    nextStep: g.nextStep,
+    status: g.status,
+    targetDate: g.targetDate,
+    position: g.position,
+  };
+}
+
+export async function listGoals(): Promise<Goal[]> {
+  const userId = await requireUserId();
+  return db
+    .select()
+    .from(goals)
+    .where(eq(goals.userId, userId))
+    .orderBy(asc(goals.position), asc(goals.createdAt));
+}
+
+export async function addGoal(input: {
+  title: string;
+  icon?: string | null;
+  description?: string | null;
+  nextStep?: string | null;
+  progressPct?: number;
+  targetDate?: string | null;
+  linkedWidgetId?: string | null;
+}): Promise<Goal> {
+  const userId = await requireUserId();
+  const [last] = await db
+    .select({ position: goals.position })
+    .from(goals)
+    .where(eq(goals.userId, userId))
+    .orderBy(desc(goals.position))
+    .limit(1);
+  const position = (last?.position ?? -1) + 1;
+  const [row] = await db
+    .insert(goals)
+    .values({
+      userId,
+      title: input.title,
+      icon: input.icon ?? "goal",
+      description: input.description ?? null,
+      nextStep: input.nextStep ?? null,
+      progressPct: input.progressPct ?? 0,
+      targetDate: input.targetDate ?? null,
+      linkedWidgetId: input.linkedWidgetId ?? null,
+      position,
+    })
+    .returning();
+  return row;
+}
+
+export async function updateGoal(
+  goalId: string,
+  patch: Partial<{
+    title: string;
+    icon: string;
+    description: string | null;
+    nextStep: string | null;
+    progressPct: number;
+    status: GoalStatus;
+    targetDate: string | null;
+  }>,
+): Promise<Goal | null> {
+  const userId = await requireUserId();
+  const [row] = await db
+    .update(goals)
+    .set(patch)
+    .where(and(eq(goals.userId, userId), eq(goals.id, goalId)))
+    .returning();
+  return row ?? null;
+}
+
+export async function deleteGoal(goalId: string): Promise<boolean> {
+  const userId = await requireUserId();
+  const deleted = await db
+    .delete(goals)
+    .where(and(eq(goals.userId, userId), eq(goals.id, goalId)))
+    .returning({ id: goals.id });
+  return deleted.length > 0;
+}
+
+export async function setGoalPositions(orderedIds: string[]): Promise<void> {
+  const userId = await requireUserId();
+  await Promise.all(
+    orderedIds.map((id, i) =>
+      db.update(goals).set({ position: i }).where(and(eq(goals.userId, userId), eq(goals.id, id))),
+    ),
+  );
 }
 
 /** All of the user's logs since `fromDate` (inclusive). For heatmaps/streaks. */

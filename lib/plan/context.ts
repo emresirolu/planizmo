@@ -3,6 +3,7 @@ import {
   getHealthSnapshot,
   getMyTimezone,
   listChecklistItems,
+  listGoals,
   listMyWidgets,
   listStreaks,
   listTasks,
@@ -38,6 +39,7 @@ export type WeekContext = {
   checklists: Array<{ ref_widget_id: string; title: string; items: string[] }>;
   tasksThisWeek: Array<{ title: string; due_date: string }>;
   health: { lastNightSleepHours: number | null; recentSteps: number | null } | null;
+  goals: Array<{ title: string; nextStep: string | null; progress: number }>;
 };
 
 export async function buildWeekContext(weekStart: string): Promise<WeekContext> {
@@ -105,6 +107,11 @@ export async function buildWeekContext(weekStart: string): Promise<WeekContext> 
       ? null
       : { lastNightSleepHours: snap.sleepHours, recentSteps: snap.steps };
 
+  const goals = (await listGoals())
+    .filter((g) => g.status === "active")
+    .slice(0, 6)
+    .map((g) => ({ title: g.title, nextStep: g.nextStep, progress: g.progressPct }));
+
   return {
     week_start: weekStart,
     week_end: weekEnd,
@@ -113,5 +120,6 @@ export async function buildWeekContext(weekStart: string): Promise<WeekContext> 
     checklists,
     tasksThisWeek,
     health,
+    goals,
   };
 }

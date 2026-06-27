@@ -10,7 +10,9 @@ import { logWidget, toggleTaskAction } from "@/lib/actions/widgets";
 import { setViewModeAction } from "@/lib/actions/timeline";
 import TimelineView from "./TimelineView";
 import HealthSummary from "./HealthSummary";
+import GoalsPanel from "./GoalsPanel";
 import type { ClientTimeBlock } from "@/lib/plan/timeline";
+import type { ClientGoal } from "@/lib/goals/types";
 import type { HealthSummary as HealthSummaryData } from "@/lib/db/scoped";
 import type { ClientWidget, LogState, StreakStats } from "@/lib/widgets/types";
 
@@ -32,11 +34,12 @@ type Props = {
   initialViewMode: ViewMode;
   timeBlocks: ClientTimeBlock[];
   health: HealthSummaryData;
+  goals: ClientGoal[];
 };
 
 const EMPTY: LogState = { value: null, completed: false };
 
-export default function TodayView({ name, greeting, summary, today, widgets, initialLogs, streaks, checklists, tasks: initialTasks, initialViewMode, timeBlocks, health }: Props) {
+export default function TodayView({ name, greeting, summary, today, widgets, initialLogs, streaks, checklists, tasks: initialTasks, initialViewMode, timeBlocks, health, goals }: Props) {
   const router = useRouter();
   const [logs, setLogs] = useState(initialLogs);
   const [tasks, setTasks] = useState(initialTasks);
@@ -158,7 +161,7 @@ export default function TodayView({ name, greeting, summary, today, widgets, ini
         {/* ===== Col 2: middle ===== */}
         <div className="flex flex-col gap-[18px]">
           <NextMove widgets={trackable} logs={logs} dueToday={dueToday} />
-          <ComingSoon title="Goals" blurb="Set the bigger things you're working toward — Planizmo will tie your weeks to them. Arriving soon." icon="goals" />
+          <GoalsPanel goals={goals} />
           <div className="grid gap-[18px] sm:grid-cols-2">
             <HealthSummary summary={health} compact />
             <HabitsPanel widgets={widgets} streaks={streaks} logs={logs} today={today} />
@@ -290,19 +293,3 @@ function HabitsPanel({ widgets, streaks, logs, today }: { widgets: ClientWidget[
   );
 }
 
-function ComingSoon({ title, blurb, icon, compact }: { title: string; blurb: string; icon: string; compact?: boolean }) {
-  return (
-    <section className="rounded-[18px] border p-[18px]" style={{ background: "var(--surface)", borderColor: "var(--border)" }}>
-      <div className="mb-2 flex items-center justify-between">
-        <span className={`${compact ? "text-[14.5px]" : "text-[15px]"} font-semibold tracking-tight`}>{title}</span>
-        <span className="rounded-full px-2 py-0.5 text-[11px] font-medium" style={{ background: "var(--surface2)", color: "var(--muted)" }}>coming soon</span>
-      </div>
-      <div className="flex items-center gap-3 py-2">
-        <span className="flex h-9 w-9 flex-none items-center justify-center rounded-[10px]" style={{ background: "var(--surface2)", color: "var(--muted)" }}>
-          <WidgetIcon name={icon === "goals" ? "counter" : "sleep"} size={18} />
-        </span>
-        <p className="text-[13px] leading-relaxed" style={{ color: "var(--muted)" }}>{blurb}</p>
-      </div>
-    </section>
-  );
-}
