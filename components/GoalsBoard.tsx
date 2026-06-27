@@ -16,6 +16,7 @@ const inputStyle = { background: "var(--surface2)", borderColor: "var(--border)"
 export default function GoalsBoard({ initial }: { initial: ClientGoal[] }) {
   const [goals, setGoals] = useState<ClientGoal[]>(initial);
   const [adding, setAdding] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
   const [, startTransition] = useTransition();
 
   // add form
@@ -31,11 +32,14 @@ export default function GoalsBoard({ initial }: { initial: ClientGoal[] }) {
   function add() {
     const t = title.trim();
     if (!t) return;
+    setErr(null);
     startTransition(async () => {
       const res = await addGoalAction({ title: t, icon, nextStep, targetDate: targetDate || null });
       if (res.ok) {
         setGoals((gs) => [...gs, res.goal]);
         setTitle(""); setNextStep(""); setTargetDate(""); setIcon("goal"); setAdding(false);
+      } else {
+        setErr(res.error ?? "Could not add goal");
       }
     });
   }
@@ -76,6 +80,13 @@ export default function GoalsBoard({ initial }: { initial: ClientGoal[] }) {
           New goal
         </button>
       </div>
+
+      {err && (
+        <div className="mb-3 flex items-center justify-between rounded-xl border px-3.5 py-2.5 text-[13px]" style={{ borderColor: "color-mix(in srgb, var(--accent) 26%, transparent)", background: "color-mix(in srgb, var(--accent) 8%, transparent)" }}>
+          <span style={{ color: "var(--muted)" }}>{err}</span>
+          <a href="/dashboard/upgrade" className="font-medium" style={{ color: "var(--accent)" }}>Upgrade →</a>
+        </div>
+      )}
 
       {adding && (
         <div className="mb-4 flex flex-col gap-3 rounded-[18px] border p-4" style={{ background: "var(--surface)", borderColor: "var(--border)" }}>

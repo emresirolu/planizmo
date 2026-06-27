@@ -7,6 +7,7 @@ import {
   addWidget,
   deleteTask,
   getLog,
+  getMyPlan,
   getMyTimezone,
   getMyWidget,
   removeChecklistItem,
@@ -24,6 +25,7 @@ import { getPreset } from "@/lib/widgets/catalog";
 import { todayInTimeZone } from "@/lib/widgets/date";
 import { nextLogState } from "@/lib/widgets/logic";
 import { recomputeMyStreak } from "@/lib/widgets/streak-service";
+import { can, UPGRADE_COPY } from "@/lib/billing/plan";
 import {
   isStreakType,
   type ChecklistItem,
@@ -155,7 +157,9 @@ export async function updateWidgetAction(
 
 export async function reorderWidgetsAction(
   orderedIds: string[],
-): Promise<{ ok: boolean }> {
+): Promise<{ ok: boolean; upgrade?: boolean; error?: string }> {
+  if (!can(await getMyPlan(), "customization"))
+    return { ok: false, upgrade: true, error: UPGRADE_COPY.customization };
   try {
     await setWidgetPositions(orderedIds);
     await saveLayout({ flow: orderedIds }); // mirror to layouts.layout_json
@@ -171,7 +175,9 @@ export async function reorderWidgetsAction(
 export async function resizeWidgetAction(
   widgetId: string,
   size: WidgetSize,
-): Promise<{ ok: boolean }> {
+): Promise<{ ok: boolean; upgrade?: boolean; error?: string }> {
+  if (!can(await getMyPlan(), "customization"))
+    return { ok: false, upgrade: true, error: UPGRADE_COPY.customization };
   if (!SIZES.includes(size)) return { ok: false };
   const w = await updateWidget(widgetId, { size });
   if (w) {

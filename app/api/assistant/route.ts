@@ -1,10 +1,13 @@
 import { auth } from "@/auth";
 import {
   addAssistantMessage,
+  countActionsSince,
+  getMyPlan,
   getMyProfile,
   listRecentAssistantMessages,
   type AssistantMessage,
 } from "@/lib/db/scoped";
+import { can, LIMITS, UPGRADE_COPY } from "@/lib/billing/plan";
 import { buildAssistantContext, type AssistantContext } from "@/lib/assistant/context";
 import {
   SYSTEM_PREFIX,
@@ -108,18 +111,30 @@ export async function POST(req: Request): Promise<Response> {
   const profile = await getMyProfile();
   const name = firstName(profile?.displayName, session.user.name);
   const { context, today } = await buildAssistantContext();
+  const plan = await getMyPlan();
+
+  // Plan gating for AI planning actions (server-side = source of truth).
+  let gatedReply: string | null = null;
+  if ((action === "replan_anchor" || action === "next_move") && !can(plan, "unlimited_ai_planning")) {
+    gatedReply = action === "replan_anchor" ? UPGRADE_COPY.replan : UPGRADE_COPY.next_move;
+  } else if (action === "plan_day" && !can(plan, "unlimited_ai_planning")) {
+    const used = await countActionsSince("plan_day", new Date(Date.now() - 7 * 86400000));
+    if (used >= LIMITS.planMyDayPerWeek) gatedReply = UPGRADE_COPY.plan_my_day;
+  }
 
   await addAssistantMessage({
     role: "user",
     content: message,
-    contextJson: { op: "chat", date: today },
+    contextJson: { op: "chat", date: today, ...(action ? { action } : {}) },
   });
 
   let reply: string;
   let refresh = false;
 
   // Planning actions: the rail acts, writing through scoped helpers (reversible).
-  if (action === "plan_day" || action === "replan_anchor") {
+  if (gatedReply) {
+    reply = gatedReply;
+  } else if (action === "plan_day" || action === "replan_anchor") {
     const r = await runPlanDay(message, action === "replan_anchor");
     reply = r.reply;
     refresh = r.refresh;
@@ -162,5 +177,5 @@ export async function POST(req: Request): Promise<Response> {
     contextJson: { op: "chat", date: today, snapshot: context },
   });
 
-  return Response.json({ ok: true, reply, id: saved.id, refresh });
+  return Response.json({ ok: true, reply, id: saved.id, refresh, upgrade: gatedReply != null });
 }

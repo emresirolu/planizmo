@@ -55,8 +55,12 @@ export default function HealthSummary({ summary, compact }: { summary: Summary; 
     startTransition(async () => {
       try {
         const res = await fetch("/api/health-sync", { method: "POST" });
-        if (res.ok) router.refresh();
-        else setErr("Sync failed — try again.");
+        if (res.ok) {
+          router.refresh();
+        } else {
+          const d = await res.json().catch(() => ({}));
+          setErr(d.upgrade ? "Auto-sync is a Pro feature — upgrade to connect." : "Sync failed — try again.");
+        }
       } catch {
         setErr("Couldn't reach sync.");
       }

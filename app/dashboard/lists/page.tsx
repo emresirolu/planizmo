@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import Dashboard from "@/components/Dashboard";
-import { getMyProfile } from "@/lib/db/scoped";
+import { getMyPlan, getMyProfile } from "@/lib/db/scoped";
 import { loadDashboard } from "@/lib/widgets/dashboard-data";
 
 export default async function ListsPage() {
@@ -9,11 +9,13 @@ export default async function ListsPage() {
   if (!session?.user) redirect("/signin");
   const profile = await getMyProfile();
   const data = await loadDashboard();
+  const plan = await getMyPlan();
   const name = profile?.displayName?.split(" ")[0] ?? session.user.name?.split(" ")[0] ?? "there";
 
   return (
     <Dashboard
       heading="Lists"
+      plan={plan}
       filterKinds={["checklist", "tasks"]}
       name={name}
       greeting=""

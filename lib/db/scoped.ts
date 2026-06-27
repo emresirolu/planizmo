@@ -1,5 +1,5 @@
 import "server-only";
-import { and, asc, desc, eq, gte, type SQL } from "drizzle-orm";
+import { and, asc, desc, eq, gte, sql, type SQL } from "drizzle-orm";
 import { auth } from "@/auth";
 import { db } from "./index";
 import {
@@ -98,6 +98,50 @@ export async function updateMyProfile(
 export async function getMyTimezone(): Promise<string> {
   const profile = await getMyProfile();
   return profile?.timezone || "UTC";
+}
+
+/* ---------------------------------------------------------------------------
+ * Plan + usage metering (Milestone 11). Plan is the source of truth for gating.
+ * ------------------------------------------------------------------------- */
+
+export async function getMyPlan(): Promise<"free" | "pro"> {
+  const profile = await getMyProfile();
+  return (profile?.plan as "free" | "pro") ?? "free";
+}
+
+export async function countActiveGoals(): Promise<number> {
+  const userId = await requireUserId();
+  const [r] = await db
+    .select({ n: sql<number>`count(*)::int` })
+    .from(goals)
+    .where(and(eq(goals.userId, userId), eq(goals.status, "active")));
+  return r?.n ?? 0;
+}
+
+export async function countWeekPlansSince(since: Date): Promise<number> {
+  const userId = await requireUserId();
+  const [r] = await db
+    .select({ n: sql<number>`count(*)::int` })
+    .from(weekPlans)
+    .where(and(eq(weekPlans.userId, userId), gte(weekPlans.createdAt, since)));
+  return r?.n ?? 0;
+}
+
+/** Count metered AI actions (tagged in assistant_messages.context_json.action). */
+export async function countActionsSince(action: string, since: Date): Promise<number> {
+  const userId = await requireUserId();
+  const [r] = await db
+    .select({ n: sql<number>`count(*)::int` })
+    .from(assistantMessages)
+    .where(
+      and(
+        eq(assistantMessages.userId, userId),
+        eq(assistantMessages.role, "user"),
+        gte(assistantMessages.createdAt, since),
+        sql`${assistantMessages.contextJson} ->> 'action' = ${action}`,
+      ),
+    );
+  return r?.n ?? 0;
 }
 
 export type ViewMode = "flow" | "timeline";

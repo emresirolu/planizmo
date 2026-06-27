@@ -89,10 +89,11 @@ export type HealthSyncSummary = { users: number; synced: number; failed: number 
 /** Sync sleep + steps for every user from the active provider. Idempotent. */
 export async function runHealthSyncAll(): Promise<HealthSyncSummary> {
   const allProfiles = await db
-    .select({ userId: profiles.userId, timezone: profiles.timezone })
+    .select({ userId: profiles.userId, timezone: profiles.timezone, plan: profiles.plan })
     .from(profiles);
   const summary: HealthSyncSummary = { users: allProfiles.length, synced: 0, failed: 0 };
   for (const p of allProfiles) {
+    if (p.plan !== "pro") continue; // health auto-sync is a Pro feature
     try {
       const r = await syncHealthForUser(p.userId, p.timezone || "UTC");
       summary.synced += r.synced;

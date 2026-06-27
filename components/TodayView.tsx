@@ -15,6 +15,7 @@ import type { ClientTimeBlock } from "@/lib/plan/timeline";
 import type { ClientGoal } from "@/lib/goals/types";
 import type { HealthSummary as HealthSummaryData } from "@/lib/db/scoped";
 import type { ClientWidget, LogState, StreakStats } from "@/lib/widgets/types";
+import { can, type Plan } from "@/lib/billing/plan";
 
 type ViewMode = "flow" | "timeline";
 
@@ -35,19 +36,25 @@ type Props = {
   timeBlocks: ClientTimeBlock[];
   health: HealthSummaryData;
   goals: ClientGoal[];
+  plan: Plan;
 };
 
 const EMPTY: LogState = { value: null, completed: false };
 
-export default function TodayView({ name, greeting, summary, today, widgets, initialLogs, streaks, checklists, tasks: initialTasks, initialViewMode, timeBlocks, health, goals }: Props) {
+export default function TodayView({ name, greeting, summary, today, widgets, initialLogs, streaks, checklists, tasks: initialTasks, initialViewMode, timeBlocks, health, goals, plan }: Props) {
   const router = useRouter();
   const [logs, setLogs] = useState(initialLogs);
   const [tasks, setTasks] = useState(initialTasks);
   const [mode, setMode] = useState<ViewMode>(initialViewMode);
   const [, startTransition] = useTransition();
+  const timelineLocked = !can(plan, "timeline_mode");
 
   function switchMode(next: ViewMode) {
     if (next === mode) return;
+    if (next === "timeline" && timelineLocked) {
+      router.push("/dashboard/upgrade");
+      return;
+    }
     setMode(next); // instant + lossless (data is never destroyed)
     startTransition(() => void setViewModeAction(next));
   }

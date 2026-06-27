@@ -3,12 +3,15 @@
 import { revalidatePath } from "next/cache";
 import {
   addGoal,
+  countActiveGoals,
   deleteGoal,
+  getMyPlan,
   setGoalPositions,
   toClientGoal,
   updateGoal,
 } from "@/lib/db/scoped";
 import { GOAL_ICONS, type ClientGoal, type GoalStatus } from "@/lib/goals/types";
+import { can, LIMITS, UPGRADE_COPY } from "@/lib/billing/plan";
 
 const STATUSES: GoalStatus[] = ["active", "done", "paused"];
 
@@ -36,6 +39,9 @@ export async function addGoalAction(input: {
 }): Promise<{ ok: true; goal: ClientGoal } | { ok: false; error: string }> {
   const title = input.title.trim();
   if (!title) return { ok: false, error: "Give it a title" };
+  if (!can(await getMyPlan(), "unlimited_goals") && (await countActiveGoals()) >= LIMITS.maxActiveGoals) {
+    return { ok: false, error: UPGRADE_COPY.goals };
+  }
   try {
     const g = await addGoal({
       title: title.slice(0, 100),
