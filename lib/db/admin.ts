@@ -1,9 +1,10 @@
 import "server-only";
-import { and, eq } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { db } from "./index";
-import { profiles, streaks, widgets } from "./schema";
+import { assistantMessages, profiles, streaks, widgets } from "./schema";
 import { recomputeStreakForUser } from "@/lib/widgets/streak-service";
 import { todayInTimeZone } from "@/lib/widgets/date";
+import { mondayOf } from "@/lib/widgets/streak";
 import { isStreakType } from "@/lib/widgets/types";
 
 /**
@@ -77,6 +78,50 @@ export async function runRollover(): Promise<RolloverSummary> {
         if ((s.freezesAvailable ?? 0) !== next) summary.freezesDecremented++;
       }
     }
+  }
+
+  return summary;
+}
+
+export type NudgeSummary = { users: number; nudged: number };
+
+const NUDGE_TEXT =
+  "It's a good moment to plan the week ahead — want to lay out Monday to Sunday together? Open the planner whenever you're ready, no pressure.";
+
+/**
+ * Sunday nudge: drop one gentle "plan your week" invitation into each user's
+ * assistant rail. Idempotent — at most one nudge per user per (local) week.
+ */
+export async function runWeeklyNudge(): Promise<NudgeSummary> {
+  const allProfiles = await db
+    .select({ userId: profiles.userId, timezone: profiles.timezone })
+    .from(profiles);
+
+  const summary: NudgeSummary = { users: allProfiles.length, nudged: 0 };
+
+  for (const p of allProfiles) {
+    const weekStart = mondayOf(todayInTimeZone(p.timezone || "UTC"));
+
+    const existing = await db
+      .select({ id: assistantMessages.id })
+      .from(assistantMessages)
+      .where(
+        and(
+          eq(assistantMessages.userId, p.userId),
+          sql`${assistantMessages.contextJson} ->> 'op' = 'nudge'`,
+          sql`${assistantMessages.contextJson} ->> 'week_start' = ${weekStart}`,
+        ),
+      )
+      .limit(1);
+    if (existing.length > 0) continue;
+
+    await db.insert(assistantMessages).values({
+      userId: p.userId,
+      role: "assistant",
+      content: NUDGE_TEXT,
+      contextJson: { op: "nudge", date: weekStart, week_start: weekStart },
+    });
+    summary.nudged++;
   }
 
   return summary;

@@ -97,6 +97,7 @@ export const assistantRoleEnum = pgEnum("assistant_role", [
   "user",
   "assistant",
 ]);
+export const planStatusEnum = pgEnum("plan_status", ["draft", "approved"]);
 
 /* ============================================================
  * Application tables — every table carries user_id -> users.id
@@ -297,3 +298,24 @@ export const assistantMessages = pgTable("assistant_messages", {
     .notNull()
     .defaultNow(),
 });
+
+/* ---- weekly planning ritual (Milestone 6) ---- */
+
+export const weekPlans = pgTable(
+  "week_plans",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    weekStart: date("week_start").notNull(), // local Monday
+    brainDumpText: text("brain_dump_text"),
+    planJson: jsonb("plan_json"),
+    status: planStatusEnum("status").notNull().default("draft"),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    approvedAt: timestamp("approved_at", { withTimezone: true }),
+  },
+  (t) => [uniqueIndex("week_plans_user_week_unq").on(t.userId, t.weekStart)],
+);
