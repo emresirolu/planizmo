@@ -16,6 +16,8 @@ import {
 } from "./schema";
 import type { WeekPlan } from "@/lib/plan/types";
 import type { ClientWidget } from "@/lib/widgets/types";
+import { todayInTimeZone } from "@/lib/widgets/date";
+import { mondayOf } from "@/lib/widgets/streak";
 
 /**
  * Security baseline (replaces Postgres RLS).
@@ -263,6 +265,83 @@ export async function updateWidget(
     .where(and(eq(widgets.userId, userId), eq(widgets.id, widgetId)))
     .returning();
   return row ?? null;
+}
+
+/* ---------------------------------------------------------------------------
+ * Health snapshot + summary (Milestone 8)
+ * ------------------------------------------------------------------------- */
+
+async function findHealthWidgets(userId: string) {
+  const hw = await db
+    .select()
+    .from(widgets)
+    .where(and(eq(widgets.userId, userId), eq(widgets.type, "health")));
+  return {
+    sleep: hw.find((w) => w.unit === "hours" || /sleep/i.test(w.title)) ?? null,
+    steps: hw.find((w) => w.unit === "steps" || /steps/i.test(w.title)) ?? null,
+  };
+}
+
+/** Compact health for a date — feeds the AI context. Nulls when not synced. */
+export async function getHealthSnapshot(
+  date: string,
+): Promise<{ sleepHours: number | null; steps: number | null }> {
+  const userId = await requireUserId();
+  const { sleep, steps } = await findHealthWidgets(userId);
+  const valueOn = async (widgetId: string) => {
+    const [l] = await db
+      .select({ value: logs.value })
+      .from(logs)
+      .where(and(eq(logs.userId, userId), eq(logs.widgetId, widgetId), eq(logs.date, date)))
+      .limit(1);
+    return l?.value != null ? Number(l.value) : null;
+  };
+  return {
+    sleepHours: sleep ? await valueOn(sleep.id) : null,
+    steps: steps ? await valueOn(steps.id) : null,
+  };
+}
+
+export type HealthSummary = {
+  sleepHours: number | null;
+  sleepTarget: number;
+  steps: number | null;
+  stepsTarget: number;
+  workout: { title: string; done: number; target: number | null } | null;
+  provider: "mock" | "fitbit";
+};
+
+/** Health Summary panel data (Sleep/Steps from sync; Workout from gym habit). */
+export async function getHealthSummary(): Promise<HealthSummary> {
+  const userId = await requireUserId();
+  const profile = await getMyProfile();
+  const tz = profile?.timezone || "UTC";
+  const today = todayInTimeZone(tz);
+  const snap = await getHealthSnapshot(today);
+
+  const all = await db.select().from(widgets).where(eq(widgets.userId, userId));
+  const gym = all.find(
+    (w) => (w.type === "habit" || w.type === "health") && /gym|workout|exercise|lift|train/i.test(w.title),
+  );
+  let workout: HealthSummary["workout"] = null;
+  if (gym) {
+    const weekStart = mondayOf(today);
+    const wl = await db
+      .select({ date: logs.date, completed: logs.completed })
+      .from(logs)
+      .where(and(eq(logs.userId, userId), eq(logs.widgetId, gym.id), gte(logs.date, weekStart)));
+    const done = wl.filter((l) => l.completed && l.date <= today).length;
+    workout = { title: gym.title, done, target: gym.target ?? null };
+  }
+
+  return {
+    sleepHours: snap.sleepHours,
+    sleepTarget: 8,
+    steps: snap.steps,
+    stepsTarget: 8000,
+    workout,
+    provider: process.env.HEALTH_PROVIDER === "fitbit" ? "fitbit" : "mock",
+  };
 }
 
 /** All of the user's logs since `fromDate` (inclusive). For heatmaps/streaks. */

@@ -1,4 +1,4 @@
-import { runRollover } from "@/lib/db/admin";
+import { runHealthSyncAll, runRollover } from "@/lib/db/admin";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -24,6 +24,8 @@ export async function GET(req: Request): Promise<Response> {
     return new Response("Unauthorized", { status: 401 });
   }
 
+  // Sync health first so the streak recompute below sees fresh sleep/steps logs.
+  const health = await runHealthSyncAll();
   const summary = await runRollover();
-  return Response.json({ ok: true, summary });
+  return Response.json({ ok: true, health, summary });
 }

@@ -12,6 +12,7 @@ Rules:
 - Place each habit on the days its schedule allows: "every day" = all 7; "weekdays (Mon–Fri)" = Mon–Fri only; "N× this week (flexible days)" = spread N days across the week, not all 7.
 - Place existing tasks on their due date (or earlier if it helps).
 - Distribute the brain-dump's new work sensibly across the week as task or note items; keep each day realistic and not overloaded (aim for a handful of items per day, lighter on weekends).
+- If the context includes "health" (last night's sleep, recent steps), you may use it to pace the week (e.g. a lighter morning after poor sleep). Use only the given numbers; never invent health data.
 - NEVER invent habits, tasks, numbers, streaks or widgets that are not in the context. Use ref_widget_id only with ids present in the context; otherwise null.
 - Rationale: one short, warm, non-shaming sentence. Sentence case. No emoji.
 

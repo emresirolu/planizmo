@@ -1,5 +1,6 @@
 import "server-only";
 import { loadDashboard } from "@/lib/widgets/dashboard-data";
+import { getHealthSnapshot } from "@/lib/db/scoped";
 import { isScheduledToday } from "@/lib/widgets/logic";
 
 /**
@@ -30,7 +31,10 @@ export type AssistantContext = {
     overdue: Array<{ title: string; due: string }>;
     openCount: number;
   };
-  health: null; // M7 slot (sleep/steps)
+  health: {
+    lastNightSleepHours: number | null;
+    todaySteps: number | null;
+  } | null;
 };
 
 export async function buildAssistantContext(): Promise<{
@@ -89,6 +93,12 @@ export async function buildAssistantContext(): Promise<{
     scheduledWidgets.filter((w) => w.completed).length +
     checklists.filter((c) => c.completed).length;
 
+  const snap = await getHealthSnapshot(d.today);
+  const health =
+    snap.sleepHours == null && snap.steps == null
+      ? null
+      : { lastNightSleepHours: snap.sleepHours, todaySteps: snap.steps };
+
   return {
     today: d.today,
     context: {
@@ -99,7 +109,7 @@ export async function buildAssistantContext(): Promise<{
       widgets,
       checklists,
       tasks: { dueToday, overdue, openCount },
-      health: null,
+      health,
     },
   };
 }

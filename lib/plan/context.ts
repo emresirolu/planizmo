@@ -1,11 +1,14 @@
 import "server-only";
 import {
+  getHealthSnapshot,
+  getMyTimezone,
   listChecklistItems,
   listMyWidgets,
   listStreaks,
   listTasks,
 } from "@/lib/db/scoped";
 import { addDays } from "@/lib/widgets/streak";
+import { todayInTimeZone } from "@/lib/widgets/date";
 import { WEEKDAYS } from "./types";
 
 export { WEEKDAYS };
@@ -34,6 +37,7 @@ export type WeekContext = {
   }>;
   checklists: Array<{ ref_widget_id: string; title: string; items: string[] }>;
   tasksThisWeek: Array<{ title: string; due_date: string }>;
+  health: { lastNightSleepHours: number | null; recentSteps: number | null } | null;
 };
 
 export async function buildWeekContext(weekStart: string): Promise<WeekContext> {
@@ -95,6 +99,12 @@ export async function buildWeekContext(weekStart: string): Promise<WeekContext> 
     .map((t) => ({ title: t.title, due_date: t.dueDate as string }))
     .slice(0, 30);
 
+  const snap = await getHealthSnapshot(todayInTimeZone(await getMyTimezone()));
+  const health =
+    snap.sleepHours == null && snap.steps == null
+      ? null
+      : { lastNightSleepHours: snap.sleepHours, recentSteps: snap.steps };
+
   return {
     week_start: weekStart,
     week_end: weekEnd,
@@ -102,5 +112,6 @@ export async function buildWeekContext(weekStart: string): Promise<WeekContext> 
     habits,
     checklists,
     tasksThisWeek,
+    health,
   };
 }

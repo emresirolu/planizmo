@@ -3,6 +3,7 @@ import { and, eq, sql } from "drizzle-orm";
 import { db } from "./index";
 import { assistantMessages, profiles, streaks, widgets } from "./schema";
 import { recomputeStreakForUser } from "@/lib/widgets/streak-service";
+import { syncHealthForUser } from "@/lib/health/sync";
 import { todayInTimeZone } from "@/lib/widgets/date";
 import { mondayOf } from "@/lib/widgets/streak";
 import { isStreakType } from "@/lib/widgets/types";
@@ -80,6 +81,25 @@ export async function runRollover(): Promise<RolloverSummary> {
     }
   }
 
+  return summary;
+}
+
+export type HealthSyncSummary = { users: number; synced: number; failed: number };
+
+/** Sync sleep + steps for every user from the active provider. Idempotent. */
+export async function runHealthSyncAll(): Promise<HealthSyncSummary> {
+  const allProfiles = await db
+    .select({ userId: profiles.userId, timezone: profiles.timezone })
+    .from(profiles);
+  const summary: HealthSyncSummary = { users: allProfiles.length, synced: 0, failed: 0 };
+  for (const p of allProfiles) {
+    try {
+      const r = await syncHealthForUser(p.userId, p.timezone || "UTC");
+      summary.synced += r.synced;
+    } catch {
+      summary.failed++; // e.g. a real provider not connected — never blocks others
+    }
+  }
   return summary;
 }
 
