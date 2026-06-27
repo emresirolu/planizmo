@@ -10,8 +10,10 @@ import {
   profiles,
   streaks,
   tasks,
+  weekPlans,
   widgets,
 } from "./schema";
+import type { WeekPlan } from "@/lib/plan/types";
 import type { ClientWidget } from "@/lib/widgets/types";
 
 /**
@@ -504,4 +506,74 @@ export async function listRecentAssistantMessages(
     .orderBy(desc(assistantMessages.createdAt))
     .limit(limit);
   return rows.reverse();
+}
+
+/* ---------------------------------------------------------------------------
+ * Week plans (weekly planning ritual)
+ * ------------------------------------------------------------------------- */
+
+export type WeekPlanRow = typeof weekPlans.$inferSelect;
+
+export async function getWeekPlan(weekStart: string): Promise<WeekPlanRow | null> {
+  const userId = await requireUserId();
+  const [row] = await db
+    .select()
+    .from(weekPlans)
+    .where(and(eq(weekPlans.userId, userId), eq(weekPlans.weekStart, weekStart)))
+    .limit(1);
+  return row ?? null;
+}
+
+/** Save (or replace) the draft plan for a week. Re-running planning overwrites. */
+export async function upsertWeekPlanDraft(
+  weekStart: string,
+  brainDumpText: string,
+  plan: WeekPlan,
+): Promise<WeekPlanRow> {
+  const userId = await requireUserId();
+  const [row] = await db
+    .insert(weekPlans)
+    .values({
+      userId,
+      weekStart,
+      brainDumpText,
+      planJson: plan,
+      status: "draft",
+    })
+    .onConflictDoUpdate({
+      target: [weekPlans.userId, weekPlans.weekStart],
+      set: {
+        brainDumpText,
+        planJson: plan,
+        status: "draft",
+        approvedAt: null,
+      },
+    })
+    .returning();
+  return row;
+}
+
+export async function approveWeekPlanRow(
+  weekStart: string,
+  plan: WeekPlan,
+): Promise<WeekPlanRow | null> {
+  const userId = await requireUserId();
+  const [row] = await db
+    .update(weekPlans)
+    .set({ planJson: plan, status: "approved", approvedAt: new Date() })
+    .where(and(eq(weekPlans.userId, userId), eq(weekPlans.weekStart, weekStart)))
+    .returning();
+  return row ?? null;
+}
+
+/** First tasks-type widget, or null. Used to attach plan-created tasks. */
+export async function firstTasksWidget(): Promise<Widget | null> {
+  const userId = await requireUserId();
+  const [row] = await db
+    .select()
+    .from(widgets)
+    .where(and(eq(widgets.userId, userId), eq(widgets.type, "tasks")))
+    .orderBy(asc(widgets.position), asc(widgets.createdAt))
+    .limit(1);
+  return row ?? null;
 }

@@ -25,13 +25,14 @@ const items: Item[] = [
     ),
   },
   {
-    href: "#",
-    label: "Calendar",
-    enabled: false,
+    href: "/dashboard/planner",
+    label: "Planner",
+    enabled: true,
     icon: (
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.85" strokeLinecap="round" strokeLinejoin="round">
         <rect x="3" y="4.5" width="18" height="16" rx="2.5" />
         <path d="M3 9.5h18M8 2.5v4M16 2.5v4" />
+        <path d="M8 13h3M8 16.5h6" />
       </svg>
     ),
   },

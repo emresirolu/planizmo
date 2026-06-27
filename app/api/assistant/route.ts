@@ -81,7 +81,7 @@ export async function GET(): Promise<Response> {
   }
 
   const messages = history
-    .filter((m) => op(m) === "chat")
+    .filter((m) => op(m) === "chat" || op(m) === "nudge")
     .map((m) => ({ id: m.id, role: m.role, content: m.content }));
 
   return Response.json({ ok: true, summary, messages });

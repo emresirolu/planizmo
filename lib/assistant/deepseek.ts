@@ -37,12 +37,13 @@ Rules:
 export async function callDeepSeek(
   messages: ChatMsg[],
   maxTokens = 280,
+  opts: { json?: boolean; timeoutMs?: number } = {},
 ): Promise<string> {
   const key = process.env.DEEPSEEK_API_KEY;
   if (!key) throw new MissingKeyError();
 
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 15_000);
+  const timeout = setTimeout(() => controller.abort(), opts.timeoutMs ?? 15_000);
   try {
     const res = await fetch(ENDPOINT, {
       method: "POST",
@@ -56,6 +57,7 @@ export async function callDeepSeek(
         max_tokens: maxTokens,
         temperature: 0.5,
         stream: false,
+        ...(opts.json ? { response_format: { type: "json_object" } } : {}),
       }),
       signal: controller.signal,
     });
