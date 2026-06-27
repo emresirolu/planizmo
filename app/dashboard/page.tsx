@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import TodayView from "@/components/TodayView";
-import { getHealthSummary, getMyProfile, getMyViewMode, listGoals, listTimeBlocks, toClientGoal } from "@/lib/db/scoped";
+import { getHealthSummary, getMyPlan, getMyProfile, getMyViewMode, listGoals, listTimeBlocks, toClientGoal } from "@/lib/db/scoped";
 import { loadDashboard } from "@/lib/widgets/dashboard-data";
 import { isScheduledToday } from "@/lib/widgets/logic";
 import { isCategory, type Category } from "@/lib/plan/categories";
@@ -22,6 +22,7 @@ export default async function DashboardPage() {
   const viewMode = await getMyViewMode();
   const health = await getHealthSummary();
   const goals = (await listGoals()).map(toClientGoal);
+  const plan = await getMyPlan();
   const blockRows = await listTimeBlocks(data.today);
   const timeBlocks = blockRows.map((b) => ({
     id: b.id,
@@ -68,6 +69,7 @@ export default async function DashboardPage() {
       timeBlocks={timeBlocks}
       health={health}
       goals={goals}
+      plan={plan}
     />
   );
 }

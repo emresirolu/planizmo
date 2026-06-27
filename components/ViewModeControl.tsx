@@ -1,16 +1,24 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { setViewModeAction } from "@/lib/actions/timeline";
+import { can, type Plan } from "@/lib/billing/plan";
 
 type ViewMode = "flow" | "timeline";
 
-export default function ViewModeControl({ initial }: { initial: ViewMode }) {
+export default function ViewModeControl({ initial, plan = "free" }: { initial: ViewMode; plan?: Plan }) {
+  const router = useRouter();
   const [mode, setMode] = useState<ViewMode>(initial);
   const [, startTransition] = useTransition();
+  const timelineLocked = !can(plan, "timeline_mode");
 
   function pick(next: ViewMode) {
     if (next === mode) return;
+    if (next === "timeline" && timelineLocked) {
+      router.push("/dashboard/upgrade");
+      return;
+    }
     setMode(next);
     startTransition(() => void setViewModeAction(next));
   }

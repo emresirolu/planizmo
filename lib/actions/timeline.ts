@@ -3,18 +3,25 @@
 import { revalidatePath } from "next/cache";
 import {
   addTimeBlock,
+  getMyPlan,
   getMyTimezone,
   removeTimeBlock,
   setMyViewMode,
   updateTimeBlock,
   type ViewMode,
 } from "@/lib/db/scoped";
+import { can, UPGRADE_COPY } from "@/lib/billing/plan";
 import { isCategory, type Category } from "@/lib/plan/categories";
 import { isValidHHMM, type ClientTimeBlock } from "@/lib/plan/timeline";
 import { todayInTimeZone } from "@/lib/widgets/date";
 
-export async function setViewModeAction(mode: ViewMode): Promise<{ ok: boolean }> {
+export async function setViewModeAction(
+  mode: ViewMode,
+): Promise<{ ok: boolean; error?: string; upgrade?: boolean }> {
   if (mode !== "flow" && mode !== "timeline") return { ok: false };
+  if (mode === "timeline" && !can(await getMyPlan(), "timeline_mode")) {
+    return { ok: false, upgrade: true, error: UPGRADE_COPY.timeline_mode };
+  }
   try {
     await setMyViewMode(mode);
     revalidatePath("/dashboard");
@@ -48,6 +55,7 @@ export async function addTimeBlockAction(input: {
   title: string;
   category: string;
 }): Promise<{ ok: true; block: ClientTimeBlock } | { ok: false; error: string }> {
+  if (!can(await getMyPlan(), "timeline_mode")) return { ok: false, error: UPGRADE_COPY.timeline_mode };
   const title = input.title.trim();
   if (!title) return { ok: false, error: "Enter a title" };
   if (!isValidHHMM(input.startTime)) return { ok: false, error: "Invalid time" };

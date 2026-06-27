@@ -1,7 +1,14 @@
 import { auth } from "@/auth";
-import { getMyTimezone, upsertWeekPlanDraft } from "@/lib/db/scoped";
+import {
+  countWeekPlansSince,
+  getMyPlan,
+  getMyTimezone,
+  getWeekPlan,
+  upsertWeekPlanDraft,
+} from "@/lib/db/scoped";
 import { allowRequest } from "@/lib/assistant/ratelimit";
 import { generateWeekPlan } from "@/lib/plan/generate";
+import { can, LIMITS, UPGRADE_COPY } from "@/lib/billing/plan";
 import { mondayOf } from "@/lib/widgets/streak";
 import { todayInTimeZone } from "@/lib/widgets/date";
 
@@ -33,6 +40,17 @@ export async function POST(req: Request): Promise<Response> {
       ? body.week_start
       : todayInTimeZone(tz);
   const weekStart = mondayOf(requested);
+
+  // Meter free weekly plans (re-planning an existing week doesn't consume one).
+  if (!can(await getMyPlan(), "unlimited_ai_planning")) {
+    const existing = await getWeekPlan(weekStart);
+    if (!existing) {
+      const used = await countWeekPlansSince(new Date(Date.now() - 30 * 86400000));
+      if (used >= LIMITS.weeklyPlansPerMonth) {
+        return Response.json({ ok: false, upgrade: true, error: UPGRADE_COPY.weekly_plan }, { status: 402 });
+      }
+    }
+  }
 
   const plan = await generateWeekPlan(weekStart, brainDump);
   const row = await upsertWeekPlanDraft(weekStart, brainDump, plan);

@@ -6,6 +6,8 @@ import WidgetCard, { type WidgetHandlers } from "./WidgetCard";
 import AddWidgetSheet from "./AddWidgetSheet";
 import EditWidgetSheet from "./EditWidgetSheet";
 import ArrangeGrid from "./ArrangeGrid";
+import { useRouter } from "next/navigation";
+import { can, type Plan } from "@/lib/billing/plan";
 import { isScheduledToday, nextLogState } from "@/lib/widgets/logic";
 import {
   isStreakType,
@@ -52,12 +54,15 @@ type Props = {
   heading?: string;
   /** When set, only widgets of these types are shown (full management board). */
   filterKinds?: string[];
+  plan?: Plan;
 };
 
 const EMPTY: LogState = { value: null, completed: false };
 
 export default function Dashboard(props: Props) {
-  const { name, greeting, dateStr, today, profileTimezone, heading, filterKinds } = props;
+  const { name, greeting, dateStr, today, profileTimezone, heading, filterKinds, plan = "free" } = props;
+  const router = useRouter();
+  const canCustomize = can(plan, "customization");
 
   const [widgets, setWidgets] = useState<ClientWidget[]>(props.initialWidgets);
   const [logs, setLogs] = useState<Record<string, LogState>>(props.initialLogs);
@@ -297,8 +302,12 @@ export default function Dashboard(props: Props) {
         <div className="mb-5 flex items-center justify-between gap-2">
           <h1 className="text-[28px] font-medium tracking-tight">{heading}</h1>
           <div className="flex items-center gap-2">
-            <button type="button" onClick={() => setArranging((v) => !v)} className="flex items-center gap-1.5 rounded-full border px-3.5 py-2 text-[13px] font-medium" style={{ borderColor: arranging ? "var(--accent)" : "var(--border)", color: arranging ? "var(--accent)" : "var(--muted)", background: arranging ? "color-mix(in srgb, var(--accent) 10%, transparent)" : "transparent", cursor: "pointer" }}>
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round"><path d="M5 9l-2 3 2 3M19 9l2 3-2 3M9 5l3-2 3 2M9 19l3 2 3-2" /></svg>
+            <button type="button" onClick={() => (canCustomize ? setArranging((v) => !v) : router.push("/dashboard/upgrade"))} className="flex items-center gap-1.5 rounded-full border px-3.5 py-2 text-[13px] font-medium" style={{ borderColor: arranging ? "var(--accent)" : "var(--border)", color: arranging ? "var(--accent)" : "var(--muted)", background: arranging ? "color-mix(in srgb, var(--accent) 10%, transparent)" : "transparent", cursor: "pointer" }}>
+              {canCustomize ? (
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round"><path d="M5 9l-2 3 2 3M19 9l2 3-2 3M9 5l3-2 3 2M9 19l3 2 3-2" /></svg>
+              ) : (
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.1" strokeLinecap="round" strokeLinejoin="round"><rect x="5" y="11" width="14" height="9" rx="2" /><path d="M8 11V8a4 4 0 0 1 8 0v3" /></svg>
+              )}
               {arranging ? "Done" : "Arrange"}
             </button>
             <button type="button" onClick={() => setAdding(true)} className="flex items-center gap-1.5 rounded-full px-3.5 py-2 text-[13px] font-medium text-white" style={{ background: "var(--accent)", cursor: "pointer" }}>
