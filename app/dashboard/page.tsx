@@ -1,13 +1,15 @@
 import { redirect } from "next/navigation";
 import { auth } from "@/auth";
-import Dashboard from "@/components/Dashboard";
-import { getMyProfile } from "@/lib/db/scoped";
+import TodayView from "@/components/TodayView";
+import { getMyProfile, getMyViewMode, listTimeBlocks } from "@/lib/db/scoped";
 import { loadDashboard } from "@/lib/widgets/dashboard-data";
+import { isScheduledToday } from "@/lib/widgets/logic";
+import { isCategory, type Category } from "@/lib/plan/categories";
 
 function greetingForHour(hour: number): string {
-  if (hour < 12) return "Morning";
-  if (hour < 18) return "Afternoon";
-  return "Evening";
+  if (hour < 12) return "Good morning";
+  if (hour < 18) return "Good afternoon";
+  return "Good evening";
 }
 
 export default async function DashboardPage() {
@@ -15,38 +17,53 @@ export default async function DashboardPage() {
   if (!session?.user) redirect("/signin");
 
   const profile = await getMyProfile();
+  const tz = profile?.timezone || "UTC";
   const data = await loadDashboard();
-  const tz = data.tz;
+  const viewMode = await getMyViewMode();
+  const blockRows = await listTimeBlocks(data.today);
+  const timeBlocks = blockRows.map((b) => ({
+    id: b.id,
+    startTime: b.startTime.slice(0, 5),
+    durationMin: b.durationMin,
+    title: b.title,
+    category: (isCategory(b.category) ? b.category : "focus") as Category,
+    completed: b.completed,
+  }));
 
-  const name =
-    profile?.displayName?.split(" ")[0] ??
-    session?.user?.name?.split(" ")[0] ??
-    "there";
+  const name = profile?.displayName?.split(" ")[0] ?? session.user.name?.split(" ")[0] ?? "there";
+  const hour = Number(new Intl.DateTimeFormat("en-US", { timeZone: tz, hour: "numeric", hour12: false }).format(new Date()));
+  const greeting = greetingForHour(hour);
 
-  const now = new Date();
-  const hour = Number(
-    new Intl.DateTimeFormat("en-US", { timeZone: tz, hour: "numeric", hour12: false }).format(now),
+  const asOf = new Date(`${data.today}T00:00:00Z`);
+  const trackable = data.widgets.filter(
+    (w) => ["habit", "counter", "health", "reading", "mood"].includes(w.type) && isScheduledToday(w.schedule, asOf),
   );
-  const dateStr = new Intl.DateTimeFormat("en-US", {
-    timeZone: tz,
-    weekday: "short",
-    month: "short",
-    day: "numeric",
-  }).format(now);
+  const checklistCount = data.widgets.filter((w) => w.type === "checklist" && isScheduledToday(w.schedule, asOf)).length;
+  const tasks = Object.entries(data.tasks).flatMap(([wid, arr]) =>
+    arr.map((t) => ({ id: t.id, title: t.title, dueDate: t.dueDate, completed: t.completed, widgetId: wid })),
+  );
+  const dueToday = tasks.filter((t) => !t.completed && t.dueDate === data.today).length;
+  const scheduled = trackable.length + checklistCount + dueToday;
+  const done = trackable.filter((w) => data.logs[w.id]?.completed).length;
+
+  const summary =
+    scheduled === 0
+      ? "Your day is open — add a habit or ask the assistant to plan it."
+      : `You've got ${scheduled} thing${scheduled === 1 ? "" : "s"} on today${done > 0 ? `, ${done} already done` : ""}. Tap an item to log it, or ask the assistant to lay out your day.`;
 
   return (
-    <Dashboard
+    <TodayView
       name={name}
-      greeting={greetingForHour(hour)}
-      dateStr={dateStr}
+      greeting={greeting}
+      summary={summary}
       today={data.today}
-      profileTimezone={tz}
-      initialWidgets={data.widgets}
+      widgets={data.widgets}
       initialLogs={data.logs}
-      initialStreaks={data.streaks}
-      initialHeatmaps={data.heatmaps}
-      initialChecklists={data.checklists}
-      initialTasks={data.tasks}
+      streaks={data.streaks}
+      checklists={data.checklists}
+      tasks={tasks}
+      initialViewMode={viewMode}
+      timeBlocks={timeBlocks}
     />
   );
 }

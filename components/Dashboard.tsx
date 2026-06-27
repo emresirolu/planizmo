@@ -44,12 +44,16 @@ type Props = {
   initialHeatmaps: Record<string, HeatCell[]>;
   initialChecklists: Record<string, { items: ChecklistItem[]; checkedToday: string[] }>;
   initialTasks: Record<string, Task[]>;
+  /** When set, renders a plain heading instead of the greeting/ring hero. */
+  heading?: string;
+  /** When set, only widgets of these types are shown (full management board). */
+  filterKinds?: string[];
 };
 
 const EMPTY: LogState = { value: null, completed: false };
 
 export default function Dashboard(props: Props) {
-  const { name, greeting, dateStr, today, profileTimezone } = props;
+  const { name, greeting, dateStr, today, profileTimezone, heading, filterKinds } = props;
 
   const [widgets, setWidgets] = useState<ClientWidget[]>(props.initialWidgets);
   const [logs, setLogs] = useState<Record<string, LogState>>(props.initialLogs);
@@ -79,6 +83,8 @@ export default function Dashboard(props: Props) {
     (w) => w.type !== "tasks" && isScheduledToday(w.schedule, asOfDate),
   );
   const completedCount = ringWidgets.filter((w) => (logs[w.id] ?? EMPTY).completed).length;
+
+  const visibleWidgets = filterKinds ? widgets.filter((w) => filterKinds.includes(w.type)) : widgets;
 
   function stateOf(id: string): LogState {
     return logs[id] ?? EMPTY;
@@ -264,38 +270,42 @@ export default function Dashboard(props: Props) {
 
   return (
     <div className="flex flex-col">
-      <div className="px-1 pb-4 pt-1">
-        <div className="text-[13px]" style={{ color: "var(--muted)" }}>{dateStr}</div>
-        <h1 className="mt-1 text-3xl font-medium tracking-tight">{greeting}, {name}</h1>
-      </div>
-
-      <div className="flex flex-col gap-3 md:flex-row">
-        <div className="md:w-72 md:flex-none">
-          <CompletionRing completed={completedCount} total={ringWidgets.length} />
+      {heading ? (
+        <div className="mb-5 flex items-center justify-between">
+          <h1 className="text-[28px] font-medium tracking-tight">{heading}</h1>
+          <button type="button" onClick={() => setAdding(true)} className="flex items-center gap-1.5 rounded-full px-3.5 py-2 text-[13px] font-medium text-white" style={{ background: "var(--accent)", cursor: "pointer" }}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round"><path d="M12 5v14M5 12h14" /></svg>
+            Add widget
+          </button>
         </div>
-        <div className="flex flex-1 items-center gap-3 rounded-2xl border p-4" style={{ background: "var(--surface)", borderColor: "var(--border)" }}>
-          <div className="flex h-9 w-9 flex-none items-center justify-center rounded-xl" style={{ background: "var(--surface2)", color: "var(--accent)" }}>
-            <svg width="19" height="19" viewBox="0 0 24 24" fill="currentColor"><path d="M12 3l1.7 4.7L18 9l-4.3 1.3L12 15l-1.7-4.7L6 9l4.3-1.3z" /></svg>
+      ) : (
+        <>
+          <div className="px-1 pb-4 pt-1">
+            <div className="text-[13px]" style={{ color: "var(--muted)" }}>{dateStr}</div>
+            <h1 className="mt-1 text-3xl font-medium tracking-tight">{greeting}, {name}</h1>
           </div>
-          <p className="text-sm leading-relaxed" style={{ color: "var(--muted)" }}>
-            Your daily brief lands here soon. For now, tap a widget to log it.
-          </p>
-        </div>
-      </div>
-
-      <div className="mx-1 mb-3 mt-6 flex items-center justify-between">
-        <span className="text-[13px]" style={{ color: "var(--muted)" }}>Today</span>
-        <button type="button" onClick={() => setAdding(true)} className="flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[13px] font-medium text-white" style={{ background: "var(--accent)", cursor: "pointer" }}>
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round"><path d="M12 5v14M5 12h14" /></svg>
-          Add widget
-        </button>
-      </div>
+          <div className="flex flex-col gap-3 md:flex-row">
+            <div className="md:w-72 md:flex-none">
+              <CompletionRing completed={completedCount} total={ringWidgets.length} />
+            </div>
+            <div className="mx-1 mb-3 mt-6 flex items-center justify-between md:hidden">
+              <span className="text-[13px]" style={{ color: "var(--muted)" }}>Today</span>
+            </div>
+          </div>
+          <div className="mb-3 mt-6 flex items-center justify-end">
+            <button type="button" onClick={() => setAdding(true)} className="flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[13px] font-medium text-white" style={{ background: "var(--accent)", cursor: "pointer" }}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round"><path d="M12 5v14M5 12h14" /></svg>
+              Add widget
+            </button>
+          </div>
+        </>
+      )}
 
       <div
         className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-4"
         style={{ gridAutoRows: "minmax(9rem, auto)" }}
       >
-        {widgets.map((w) => (
+        {visibleWidgets.map((w) => (
           <WidgetCard
             key={w.id}
             widget={w}
@@ -313,11 +323,11 @@ export default function Dashboard(props: Props) {
         <button
           type="button"
           onClick={() => setAdding(true)}
-          className={`flex flex-col items-center justify-center gap-2 rounded-2xl border-[1.5px] border-dashed py-10 text-center ${widgets.length === 0 ? "col-span-2 md:col-span-3 lg:col-span-4" : ""}`}
+          className={`flex flex-col items-center justify-center gap-2 rounded-2xl border-[1.5px] border-dashed py-10 text-center ${visibleWidgets.length === 0 ? "col-span-2 md:col-span-3 lg:col-span-4" : ""}`}
           style={{ borderColor: "var(--border)", color: "var(--muted)", cursor: "pointer" }}
         >
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round"><path d="M12 5v14M5 12h14" /></svg>
-          <span className="text-sm">{widgets.length === 0 ? "Add your first widget" : "Add a widget"}</span>
+          <span className="text-sm">{visibleWidgets.length === 0 ? "Add your first widget" : "Add a widget"}</span>
         </button>
       </div>
 

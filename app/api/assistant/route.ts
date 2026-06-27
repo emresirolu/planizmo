@@ -13,6 +13,7 @@ import {
   type ChatMsg,
 } from "@/lib/assistant/deepseek";
 import { localChatReply, localSummary } from "@/lib/assistant/fallback";
+import { runBuildList, runNextMove, runPlanDay } from "@/lib/assistant/actions";
 import { allowRequest } from "@/lib/assistant/ratelimit";
 
 export const dynamic = "force-dynamic";
@@ -99,8 +100,9 @@ export async function POST(req: Request): Promise<Response> {
     );
   }
 
-  const body = (await req.json().catch(() => ({}))) as { message?: unknown };
+  const body = (await req.json().catch(() => ({}))) as { message?: unknown; action?: unknown };
   const message = String(body.message ?? "").trim().slice(0, 1000);
+  const action = typeof body.action === "string" ? body.action : null;
   if (!message) return new Response("Bad Request", { status: 400 });
 
   const profile = await getMyProfile();
@@ -114,7 +116,22 @@ export async function POST(req: Request): Promise<Response> {
   });
 
   let reply: string;
-  if (!hasDeepSeekKey()) {
+  let refresh = false;
+
+  // Planning actions: the rail acts, writing through scoped helpers (reversible).
+  if (action === "plan_day" || action === "replan_anchor") {
+    const r = await runPlanDay(message, action === "replan_anchor");
+    reply = r.reply;
+    refresh = r.refresh;
+  } else if (action === "next_move") {
+    const r = await runNextMove();
+    reply = r.reply;
+    refresh = r.refresh;
+  } else if (action === "build_list") {
+    const r = await runBuildList(message);
+    reply = r.reply;
+    refresh = r.refresh;
+  } else if (!hasDeepSeekKey()) {
     reply = localChatReply(context);
   } else {
     try {
@@ -145,5 +162,5 @@ export async function POST(req: Request): Promise<Response> {
     contextJson: { op: "chat", date: today, snapshot: context },
   });
 
-  return Response.json({ ok: true, reply, id: saved.id });
+  return Response.json({ ok: true, reply, id: saved.id, refresh });
 }

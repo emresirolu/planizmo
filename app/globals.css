@@ -43,6 +43,17 @@
   --accent: #7c8cff;
 }
 
+[data-theme="blush"] {
+  color-scheme: light;
+  --bg: #fff4f8;
+  --surface: #ffffff;
+  --surface2: #fdeaf2;
+  --text: #4a2a3c;
+  --muted: #a87e92;
+  --border: #fbe0ec;
+  --accent: #f576a8;
+}
+
 [data-theme="peach"] {
   color-scheme: light;
   --bg: #fff6f0;

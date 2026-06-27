@@ -1,4 +1,5 @@
 import ThemeControls from "@/components/ThemeControls";
+import { SignOutButton } from "@/components/nav";
 import { getMyProfile } from "@/lib/db/scoped";
 import { DEFAULT_ACCENT, DEFAULT_THEME } from "@/lib/theme/themes";
 
@@ -47,6 +48,10 @@ export default async function SettingsPage() {
         Your theme and accent are saved to your account and follow you across
         devices.
       </p>
+
+      <div className="mt-6 max-w-xs">
+        <SignOutButton variant="row" />
+      </div>
     </div>
   );
 }

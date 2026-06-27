@@ -13,7 +13,7 @@ const inter = Inter({
 
 export const metadata: Metadata = {
   title: "Planizmo",
-  description: "Your personal life dashboard.",
+  description: "Your AI planner assistant — plan your day and week, your way.",
 };
 
 export default async function RootLayout({
