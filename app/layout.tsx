@@ -1,7 +1,8 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Inter } from "next/font/google";
 import type { CSSProperties } from "react";
 import { getThemeSettings } from "@/lib/theme/server";
+import Pwa from "@/components/Pwa";
 import "./globals.css";
 
 const inter = Inter({
@@ -14,6 +15,11 @@ const inter = Inter({
 export const metadata: Metadata = {
   title: "Planizmo",
   description: "Your AI planner assistant — plan your day and week, your way.",
+  appleWebApp: { capable: true, title: "Planizmo", statusBarStyle: "default" },
+};
+
+export const viewport: Viewport = {
+  themeColor: "#4F6BED",
 };
 
 export default async function RootLayout({
@@ -31,7 +37,10 @@ export default async function RootLayout({
       style={{ "--accent": accent } as CSSProperties}
       suppressHydrationWarning
     >
-      <body>{children}</body>
+      <body>
+        {children}
+        <Pwa />
+      </body>
     </html>
   );
 }
