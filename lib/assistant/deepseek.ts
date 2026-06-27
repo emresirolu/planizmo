@@ -32,6 +32,7 @@ Rules:
 - If the data is thin or empty, say so gently and encourage a small first step — do not fabricate progress.
 - Be concise and specific. Reference the user's actual widgets, progress, streaks and tasks by name.
 - Tone: warm, supportive, never shaming. Never scold a missed day; frame it as a fresh start.
+- If the context has a "health" object, you may reference last night's sleep and today's steps to tailor advice (e.g. a light-sleep morning suits a gentler start). Use only the real numbers given; if health is null, don't mention it.
 - Sentence case. No markdown headers, no bullet lists unless asked, no emoji.`;
 
 export async function callDeepSeek(

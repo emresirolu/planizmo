@@ -9,7 +9,9 @@ import { categoryForWidgetType, CATEGORY_COLOR, CATEGORY_LABEL } from "@/lib/pla
 import { logWidget, toggleTaskAction } from "@/lib/actions/widgets";
 import { setViewModeAction } from "@/lib/actions/timeline";
 import TimelineView from "./TimelineView";
+import HealthSummary from "./HealthSummary";
 import type { ClientTimeBlock } from "@/lib/plan/timeline";
+import type { HealthSummary as HealthSummaryData } from "@/lib/db/scoped";
 import type { ClientWidget, LogState, StreakStats } from "@/lib/widgets/types";
 
 type ViewMode = "flow" | "timeline";
@@ -29,11 +31,12 @@ type Props = {
   tasks: Task[];
   initialViewMode: ViewMode;
   timeBlocks: ClientTimeBlock[];
+  health: HealthSummaryData;
 };
 
 const EMPTY: LogState = { value: null, completed: false };
 
-export default function TodayView({ name, greeting, summary, today, widgets, initialLogs, streaks, checklists, tasks: initialTasks, initialViewMode, timeBlocks }: Props) {
+export default function TodayView({ name, greeting, summary, today, widgets, initialLogs, streaks, checklists, tasks: initialTasks, initialViewMode, timeBlocks, health }: Props) {
   const router = useRouter();
   const [logs, setLogs] = useState(initialLogs);
   const [tasks, setTasks] = useState(initialTasks);
@@ -157,7 +160,7 @@ export default function TodayView({ name, greeting, summary, today, widgets, ini
           <NextMove widgets={trackable} logs={logs} dueToday={dueToday} />
           <ComingSoon title="Goals" blurb="Set the bigger things you're working toward — Planizmo will tie your weeks to them. Arriving soon." icon="goals" />
           <div className="grid gap-[18px] sm:grid-cols-2">
-            <ComingSoon title="Health summary" blurb="Sleep, steps and workouts will sync here." icon="health" compact />
+            <HealthSummary summary={health} compact />
             <HabitsPanel widgets={widgets} streaks={streaks} logs={logs} today={today} />
           </div>
         </div>
