@@ -99,6 +99,7 @@ export const assistantRoleEnum = pgEnum("assistant_role", [
   "assistant",
 ]);
 export const planStatusEnum = pgEnum("plan_status", ["draft", "approved"]);
+export const goalStatusEnum = pgEnum("goal_status", ["active", "done", "paused"]);
 export const viewModeEnum = pgEnum("view_mode", ["flow", "timeline"]);
 export const timeBlockCategoryEnum = pgEnum("time_block_category", [
   "focus",
@@ -191,13 +192,28 @@ export const streaks = pgTable(
   (t) => [uniqueIndex("streaks_widget_unq").on(t.widgetId)],
 );
 
+// Long-term objectives (Milestone 9 — repurposed from the unused M1 goals table).
+// The legacy raw_text/parsed_json columns are kept (now nullable) so the
+// migration is pure additions — no destructive drop, no rename ambiguity.
 export const goals = pgTable("goals", {
   id: uuid("id").primaryKey().defaultRandom(),
   userId: text("user_id")
     .notNull()
     .references(() => users.id, { onDelete: "cascade" }),
-  rawText: text("raw_text").notNull(),
+  rawText: text("raw_text"),
   parsedJson: jsonb("parsed_json"),
+  title: text("title").notNull(),
+  icon: text("icon"),
+  description: text("description"),
+  progressPct: integer("progress_pct").notNull().default(0),
+  nextStep: text("next_step"),
+  status: goalStatusEnum("status").notNull().default("active"),
+  targetDate: date("target_date"),
+  // optional dependency on a habit/counter; progress stays user-settable
+  linkedWidgetId: uuid("linked_widget_id").references(() => widgets.id, {
+    onDelete: "set null",
+  }),
+  position: integer("position").notNull().default(0),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),

@@ -1,6 +1,6 @@
 import "server-only";
 import { loadDashboard } from "@/lib/widgets/dashboard-data";
-import { getHealthSnapshot } from "@/lib/db/scoped";
+import { getHealthSnapshot, listGoals } from "@/lib/db/scoped";
 import { isScheduledToday } from "@/lib/widgets/logic";
 
 /**
@@ -35,6 +35,7 @@ export type AssistantContext = {
     lastNightSleepHours: number | null;
     todaySteps: number | null;
   } | null;
+  goals: Array<{ title: string; nextStep: string | null; progress: number }>;
 };
 
 export async function buildAssistantContext(): Promise<{
@@ -99,6 +100,11 @@ export async function buildAssistantContext(): Promise<{
       ? null
       : { lastNightSleepHours: snap.sleepHours, todaySteps: snap.steps };
 
+  const goals = (await listGoals())
+    .filter((g) => g.status === "active")
+    .slice(0, 6)
+    .map((g) => ({ title: g.title, nextStep: g.nextStep, progress: g.progressPct }));
+
   return {
     today: d.today,
     context: {
@@ -110,6 +116,7 @@ export async function buildAssistantContext(): Promise<{
       checklists,
       tasks: { dueToday, overdue, openCount },
       health,
+      goals,
     },
   };
 }

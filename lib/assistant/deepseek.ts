@@ -33,6 +33,7 @@ Rules:
 - Be concise and specific. Reference the user's actual widgets, progress, streaks and tasks by name.
 - Tone: warm, supportive, never shaming. Never scold a missed day; frame it as a fresh start.
 - If the context has a "health" object, you may reference last night's sleep and today's steps to tailor advice (e.g. a light-sleep morning suits a gentler start). Use only the real numbers given; if health is null, don't mention it.
+- If the context has "goals", you may connect a habit/task to a relevant goal's next step ("starting deep work moves Launch Phoenix forward"). Reference only goals present in the context; never invent one.
 - Sentence case. No markdown headers, no bullet lists unless asked, no emoji.`;
 
 export async function callDeepSeek(
