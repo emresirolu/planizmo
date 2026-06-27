@@ -10,6 +10,7 @@ import {
   profiles,
   streaks,
   tasks,
+  timeBlocks,
   weekPlans,
   widgets,
 } from "./schema";
@@ -92,6 +93,18 @@ export async function updateMyProfile(
 export async function getMyTimezone(): Promise<string> {
   const profile = await getMyProfile();
   return profile?.timezone || "UTC";
+}
+
+export type ViewMode = "flow" | "timeline";
+
+export async function getMyViewMode(): Promise<ViewMode> {
+  const profile = await getMyProfile();
+  return (profile?.viewMode as ViewMode) ?? "flow";
+}
+
+export async function setMyViewMode(mode: ViewMode): Promise<void> {
+  const userId = await requireUserId();
+  await db.update(profiles).set({ viewMode: mode }).where(eq(profiles.userId, userId));
 }
 
 /* ---------------------------------------------------------------------------
@@ -564,6 +577,83 @@ export async function approveWeekPlanRow(
     .where(and(eq(weekPlans.userId, userId), eq(weekPlans.weekStart, weekStart)))
     .returning();
   return row ?? null;
+}
+
+/* ---------------------------------------------------------------------------
+ * Time blocks (Timeline view)
+ * ------------------------------------------------------------------------- */
+
+export type TimeBlock = typeof timeBlocks.$inferSelect;
+
+export async function listTimeBlocks(date: string): Promise<TimeBlock[]> {
+  const userId = await requireUserId();
+  return db
+    .select()
+    .from(timeBlocks)
+    .where(and(eq(timeBlocks.userId, userId), eq(timeBlocks.date, date)))
+    .orderBy(asc(timeBlocks.startTime), asc(timeBlocks.position));
+}
+
+export async function addTimeBlock(input: {
+  date: string;
+  startTime: string; // 'HH:MM'
+  durationMin: number;
+  title: string;
+  category: TimeBlock["category"];
+  sourceWidgetId?: string | null;
+  sourceTaskId?: string | null;
+}): Promise<TimeBlock> {
+  const userId = await requireUserId();
+  const [row] = await db
+    .insert(timeBlocks)
+    .values({
+      userId,
+      date: input.date,
+      startTime: input.startTime,
+      durationMin: input.durationMin,
+      title: input.title,
+      category: input.category,
+      sourceWidgetId: input.sourceWidgetId ?? null,
+      sourceTaskId: input.sourceTaskId ?? null,
+    })
+    .returning();
+  return row;
+}
+
+export async function updateTimeBlock(
+  id: string,
+  patch: Partial<{
+    title: string;
+    startTime: string;
+    durationMin: number;
+    category: TimeBlock["category"];
+    completed: boolean;
+  }>,
+): Promise<boolean> {
+  const userId = await requireUserId();
+  const updated = await db
+    .update(timeBlocks)
+    .set(patch)
+    .where(and(eq(timeBlocks.userId, userId), eq(timeBlocks.id, id)))
+    .returning({ id: timeBlocks.id });
+  return updated.length > 0;
+}
+
+export async function removeTimeBlock(id: string): Promise<boolean> {
+  const userId = await requireUserId();
+  const deleted = await db
+    .delete(timeBlocks)
+    .where(and(eq(timeBlocks.userId, userId), eq(timeBlocks.id, id)))
+    .returning({ id: timeBlocks.id });
+  return deleted.length > 0;
+}
+
+/** Remove all of a day's time blocks (used when the AI replans the whole day). */
+export async function clearTimeBlocks(date: string): Promise<void> {
+  const userId = await requireUserId();
+  await db
+    .delete(timeBlocks)
+    .where(and(eq(timeBlocks.userId, userId), eq(timeBlocks.date, date)));
 }
 
 /** First tasks-type widget, or null. Used to attach plan-created tasks. */

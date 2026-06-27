@@ -1,9 +1,10 @@
 import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import TodayView from "@/components/TodayView";
-import { getMyProfile } from "@/lib/db/scoped";
+import { getMyProfile, getMyViewMode, listTimeBlocks } from "@/lib/db/scoped";
 import { loadDashboard } from "@/lib/widgets/dashboard-data";
 import { isScheduledToday } from "@/lib/widgets/logic";
+import { isCategory, type Category } from "@/lib/plan/categories";
 
 function greetingForHour(hour: number): string {
   if (hour < 12) return "Good morning";
@@ -18,6 +19,16 @@ export default async function DashboardPage() {
   const profile = await getMyProfile();
   const tz = profile?.timezone || "UTC";
   const data = await loadDashboard();
+  const viewMode = await getMyViewMode();
+  const blockRows = await listTimeBlocks(data.today);
+  const timeBlocks = blockRows.map((b) => ({
+    id: b.id,
+    startTime: b.startTime.slice(0, 5),
+    durationMin: b.durationMin,
+    title: b.title,
+    category: (isCategory(b.category) ? b.category : "focus") as Category,
+    completed: b.completed,
+  }));
 
   const name = profile?.displayName?.split(" ")[0] ?? session.user.name?.split(" ")[0] ?? "there";
   const hour = Number(new Intl.DateTimeFormat("en-US", { timeZone: tz, hour: "numeric", hour12: false }).format(new Date()));
@@ -51,6 +62,8 @@ export default async function DashboardPage() {
       streaks={data.streaks}
       checklists={data.checklists}
       tasks={tasks}
+      initialViewMode={viewMode}
+      timeBlocks={timeBlocks}
     />
   );
 }

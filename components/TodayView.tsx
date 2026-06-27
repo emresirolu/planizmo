@@ -7,7 +7,12 @@ import { useRouter } from "next/navigation";
 import { interactionMode, nextLogState, stepFor, MOOD_LABELS } from "@/lib/widgets/logic";
 import { categoryForWidgetType, CATEGORY_COLOR, CATEGORY_LABEL } from "@/lib/plan/categories";
 import { logWidget, toggleTaskAction } from "@/lib/actions/widgets";
+import { setViewModeAction } from "@/lib/actions/timeline";
+import TimelineView from "./TimelineView";
+import type { ClientTimeBlock } from "@/lib/plan/timeline";
 import type { ClientWidget, LogState, StreakStats } from "@/lib/widgets/types";
+
+type ViewMode = "flow" | "timeline";
 
 type ChecklistData = { items: { id: string; label: string }[]; checkedToday: string[] };
 type Task = { id: string; title: string; dueDate: string | null; completed: boolean; widgetId?: string };
@@ -22,15 +27,24 @@ type Props = {
   streaks: Record<string, StreakStats>;
   checklists: Record<string, ChecklistData>;
   tasks: Task[];
+  initialViewMode: ViewMode;
+  timeBlocks: ClientTimeBlock[];
 };
 
 const EMPTY: LogState = { value: null, completed: false };
 
-export default function TodayView({ name, greeting, summary, today, widgets, initialLogs, streaks, checklists, tasks: initialTasks }: Props) {
+export default function TodayView({ name, greeting, summary, today, widgets, initialLogs, streaks, checklists, tasks: initialTasks, initialViewMode, timeBlocks }: Props) {
   const router = useRouter();
   const [logs, setLogs] = useState(initialLogs);
   const [tasks, setTasks] = useState(initialTasks);
+  const [mode, setMode] = useState<ViewMode>(initialViewMode);
   const [, startTransition] = useTransition();
+
+  function switchMode(next: ViewMode) {
+    if (next === mode) return;
+    setMode(next); // instant + lossless (data is never destroyed)
+    startTransition(() => void setViewModeAction(next));
+  }
 
   useEffect(() => {
     const f = () => router.refresh();
@@ -76,15 +90,24 @@ export default function TodayView({ name, greeting, summary, today, widgets, ini
       <div className="grid gap-[18px] xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
         {/* ===== Col 1: Today's plan (Flow) ===== */}
         <section className="rounded-[18px] border p-[18px]" style={{ background: "var(--surface)", borderColor: "var(--border)" }}>
-          <div className="mb-3.5 flex items-center justify-between">
+          <div className="mb-3.5 flex flex-wrap items-center justify-between gap-2">
             <span className="text-base font-semibold tracking-tight">Today's plan</span>
-            <button type="button" onClick={askOptimize} className="flex items-center gap-1.5 rounded-full border px-[11px] py-1.5 text-[12.5px] font-medium" style={{ background: "var(--surface2)", borderColor: "var(--border)", color: "var(--accent)", cursor: "pointer" }}>
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 3l1.4 3.9L17 8l-3.6 1.1L12 13l-1.4-3.9L7 8l3.6-1.1z" /></svg>
-              Ask AI to optimize
-            </button>
+            <div className="flex items-center gap-2">
+              <div className="flex rounded-full border p-0.5" style={{ borderColor: "var(--border)", background: "var(--surface2)" }}>
+                {(["flow", "timeline"] as const).map((m) => (
+                  <button key={m} type="button" onClick={() => switchMode(m)} className="rounded-full px-3 py-1 text-[12px] font-medium capitalize" style={{ background: mode === m ? "var(--accent)" : "transparent", color: mode === m ? "#fff" : "var(--muted)", cursor: "pointer" }}>{m}</button>
+                ))}
+              </div>
+              <button type="button" onClick={askOptimize} className="flex items-center gap-1.5 rounded-full border px-[11px] py-1.5 text-[12.5px] font-medium" style={{ background: "var(--surface2)", borderColor: "var(--border)", color: "var(--accent)", cursor: "pointer" }}>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 3l1.4 3.9L17 8l-3.6 1.1L12 13l-1.4-3.9L7 8l3.6-1.1z" /></svg>
+                Ask AI to optimize
+              </button>
+            </div>
           </div>
 
-          {isEmpty ? (
+          {mode === "timeline" ? (
+            <TimelineView initial={timeBlocks} />
+          ) : isEmpty ? (
             <p className="py-6 text-sm" style={{ color: "var(--muted)" }}>
               Nothing scheduled yet. Add habits or lists, or ask the assistant to plan your day.
             </p>

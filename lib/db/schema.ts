@@ -5,6 +5,7 @@ import {
   boolean,
   numeric,
   date,
+  time,
   uuid,
   jsonb,
   timestamp,
@@ -98,6 +99,15 @@ export const assistantRoleEnum = pgEnum("assistant_role", [
   "assistant",
 ]);
 export const planStatusEnum = pgEnum("plan_status", ["draft", "approved"]);
+export const viewModeEnum = pgEnum("view_mode", ["flow", "timeline"]);
+export const timeBlockCategoryEnum = pgEnum("time_block_category", [
+  "focus",
+  "break",
+  "personal",
+  "work",
+  "health",
+  "planning",
+]);
 
 /* ============================================================
  * Application tables — every table carries user_id -> users.id
@@ -114,6 +124,7 @@ export const profiles = pgTable("profiles", {
   theme: text("theme").notNull().default("cloud"),
   accentColor: text("accent_color").notNull().default("#4F6BED"),
   plan: planEnum("plan").notNull().default("free"),
+  viewMode: viewModeEnum("view_mode").notNull().default("flow"),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),
@@ -319,3 +330,28 @@ export const weekPlans = pgTable(
   },
   (t) => [uniqueIndex("week_plans_user_week_unq").on(t.userId, t.weekStart)],
 );
+
+/* ---- Timeline view: hour-by-hour time blocks (Milestone 7) ---- */
+
+export const timeBlocks = pgTable("time_blocks", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  userId: text("user_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  date: date("date").notNull(),
+  startTime: time("start_time").notNull(), // 'HH:MM'
+  durationMin: integer("duration_min").notNull().default(30),
+  title: text("title").notNull(),
+  category: timeBlockCategoryEnum("category").notNull().default("focus"),
+  sourceWidgetId: uuid("source_widget_id").references(() => widgets.id, {
+    onDelete: "set null",
+  }),
+  sourceTaskId: uuid("source_task_id").references(() => tasks.id, {
+    onDelete: "set null",
+  }),
+  completed: boolean("completed").notNull().default(false),
+  position: integer("position").notNull().default(0),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});
