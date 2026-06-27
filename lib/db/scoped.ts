@@ -173,6 +173,19 @@ export async function addWidget(values: {
   return row;
 }
 
+/** Reorder widgets by setting position to the index in `orderedIds`. */
+export async function setWidgetPositions(orderedIds: string[]): Promise<void> {
+  const userId = await requireUserId();
+  await Promise.all(
+    orderedIds.map((id, i) =>
+      db
+        .update(widgets)
+        .set({ position: i })
+        .where(and(eq(widgets.userId, userId), eq(widgets.id, id))),
+    ),
+  );
+}
+
 export async function removeWidget(widgetId: string): Promise<boolean> {
   const userId = await requireUserId();
   const deleted = await db
