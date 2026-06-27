@@ -22,6 +22,29 @@ export default function AddWidgetSheet({ onClose, onAdded }: Props) {
   const [target, setTarget] = useState("");
   const [schedule, setSchedule] = useState<Schedule>("daily");
 
+  // describe-to-add
+  const [describe, setDescribe] = useState("");
+
+  function addByDescription() {
+    const d = describe.trim();
+    if (!d) return;
+    setError(null);
+    startTransition(async () => {
+      try {
+        const res = await fetch("/api/ai-setup", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ description: d }),
+        });
+        const data = await res.json();
+        if (data.ok) onAdded(data.widget);
+        else setError(data.error ?? "Couldn't create that.");
+      } catch {
+        setError("Couldn't reach setup — try a preset.");
+      }
+    });
+  }
+
   function addPreset(key: string) {
     setError(null);
     startTransition(async () => {
@@ -81,6 +104,21 @@ export default function AddWidgetSheet({ onClose, onAdded }: Props) {
 
         {!showCustom && (
           <div className="flex flex-col gap-2">
+            <div className="mb-1 flex items-center gap-2 rounded-2xl border p-2 pl-3.5" style={{ background: "var(--surface2)", borderColor: "var(--border)" }}>
+              <span style={{ color: "var(--accent)" }}><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12 3l1.7 4.7L18 9l-4.3 1.3L12 15l-1.7-4.7L6 9l4.3-1.3z" /></svg></span>
+              <input
+                value={describe}
+                onChange={(e) => setDescribe(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addByDescription(); } }}
+                placeholder="describe it — e.g. drink 2L of water"
+                className="pz-in min-w-0 flex-1 border-none bg-transparent text-sm outline-none"
+                style={{ color: "var(--text)" }}
+              />
+              <button type="button" disabled={pending || !describe.trim()} onClick={addByDescription} className="rounded-lg px-3 py-1.5 text-[13px] font-medium text-white disabled:opacity-50" style={{ background: "var(--accent)", cursor: "pointer" }}>
+                Add
+              </button>
+            </div>
+            <div className="px-1 pb-1 text-[11px]" style={{ color: "var(--muted)" }}>or pick a preset</div>
             {PRESETS.map((p) => (
               <button
                 key={p.key}

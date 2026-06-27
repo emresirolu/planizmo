@@ -11,7 +11,9 @@ import {
   getMyWidget,
   removeChecklistItem,
   removeWidget,
+  saveLayout,
   setChecklistLog,
+  setWidgetPositions,
   toClientWidget,
   updateChecklistItem,
   updateTask,
@@ -147,6 +149,37 @@ export async function updateWidgetAction(
   } catch {
     return { ok: false, error: "Could not save changes" };
   }
+}
+
+/* ---- arrange: reorder + resize (Milestone 10) ---- */
+
+export async function reorderWidgetsAction(
+  orderedIds: string[],
+): Promise<{ ok: boolean }> {
+  try {
+    await setWidgetPositions(orderedIds);
+    await saveLayout({ flow: orderedIds }); // mirror to layouts.layout_json
+    revalidatePath("/dashboard");
+    revalidatePath("/dashboard/habits");
+    revalidatePath("/dashboard/lists");
+    return { ok: true };
+  } catch {
+    return { ok: false };
+  }
+}
+
+export async function resizeWidgetAction(
+  widgetId: string,
+  size: WidgetSize,
+): Promise<{ ok: boolean }> {
+  if (!SIZES.includes(size)) return { ok: false };
+  const w = await updateWidget(widgetId, { size });
+  if (w) {
+    revalidatePath("/dashboard");
+    revalidatePath("/dashboard/habits");
+    revalidatePath("/dashboard/lists");
+  }
+  return { ok: Boolean(w) };
 }
 
 export async function removeWidgetAction(

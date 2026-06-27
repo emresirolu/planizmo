@@ -1,12 +1,14 @@
 import ThemeControls from "@/components/ThemeControls";
+import ViewModeControl from "@/components/ViewModeControl";
 import { SignOutButton } from "@/components/nav";
-import { getMyProfile } from "@/lib/db/scoped";
+import { getMyProfile, getMyViewMode } from "@/lib/db/scoped";
 import { DEFAULT_ACCENT, DEFAULT_THEME } from "@/lib/theme/themes";
 
 export default async function SettingsPage() {
   const profile = await getMyProfile();
   const theme = profile?.theme ?? DEFAULT_THEME;
   const accent = profile?.accentColor ?? DEFAULT_ACCENT;
+  const viewMode = await getMyViewMode();
 
   return (
     <div className="flex flex-col">
@@ -18,6 +20,14 @@ export default async function SettingsPage() {
         Appearance
       </div>
       <ThemeControls initialTheme={theme} initialAccent={accent} />
+
+      <div className="mx-1 mb-3 mt-6 text-[13px]" style={{ color: "var(--muted)" }}>
+        Layout
+      </div>
+      <ViewModeControl initial={viewMode} />
+      <p className="mx-1 mt-2 text-[12.5px] leading-relaxed" style={{ color: "var(--muted)" }}>
+        Reorder and resize widgets from the Habits and Lists pages — tap “Arrange”.
+      </p>
 
       <div className="mx-1 mb-3 mt-6 text-[13px]" style={{ color: "var(--muted)" }}>
         Account
