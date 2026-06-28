@@ -282,6 +282,7 @@ export default function Dashboard(props: Props) {
     return {
       onToggle: () => persist(widget, { kind: "toggle" }),
       onIncrement: (delta) => persist(widget, { kind: "increment", delta }),
+      onSetValue: (value) => persist(widget, { kind: "set", value }),
       onSetMood: (value) => persist(widget, { kind: "set", value }),
       onEdit: () => setEditing(widget),
       onRemove: () => handleRemove(widget),

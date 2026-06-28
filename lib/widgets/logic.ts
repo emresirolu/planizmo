@@ -33,23 +33,38 @@ export function nextLogState(
   }
 }
 
-/** The step a single tap moves a stepper widget (counter/health/reading). */
+/** The step a single +/- tap moves a stepper widget. Adapts to target size so
+ *  big counters (steps, protein) aren't a tapping marathon — typed entry stays
+ *  the primary interaction for those (see isLargeTarget). */
 export function stepFor(
-  widget: Pick<ClientWidget, "type" | "unit">,
+  widget: Pick<ClientWidget, "type" | "unit" | "target">,
 ): number {
   if (widget.type === "health") {
     if (widget.unit === "hours") return 0.5;
     if (widget.unit === "steps") return 500;
   }
+  const t = widget.target ?? 0;
+  if (t >= 5000) return 500;
+  if (t >= 500) return 100;
+  if (t >= 100) return 10; // e.g. protein 180g → +10
+  if (t >= 30) return 5;
   return 1;
 }
 
-/** How a widget is logged in the UI. */
-export type InteractionMode = "toggle" | "stepper" | "scale";
+/** Counters with a sizeable target → typed numeric entry is the primary action. */
+export function isLargeTarget(target: number | null | undefined): boolean {
+  return (target ?? 0) >= 30;
+}
+
+/** How a widget is logged in the UI. Lists (checklist/tasks) have their own
+ *  body UIs and are NOT steppers. */
+export type InteractionMode = "toggle" | "stepper" | "scale" | "checklist" | "tasks";
 
 export function interactionMode(type: ClientWidget["type"]): InteractionMode {
   if (type === "habit") return "toggle";
   if (type === "mood") return "scale";
+  if (type === "checklist") return "checklist";
+  if (type === "tasks") return "tasks";
   return "stepper"; // counter, health, reading
 }
 

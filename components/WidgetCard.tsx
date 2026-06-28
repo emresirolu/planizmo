@@ -1,10 +1,11 @@
 "use client";
 
+import { useState } from "react";
 import WidgetIcon from "./WidgetIcon";
 import ChecklistBody from "./ChecklistBody";
 import TasksBody from "./TasksBody";
 import StreakFooter from "./StreakFooter";
-import { MOOD_LABELS, interactionMode, stepFor } from "@/lib/widgets/logic";
+import { MOOD_LABELS, interactionMode, isLargeTarget, stepFor } from "@/lib/widgets/logic";
 import { isStreakType } from "@/lib/widgets/types";
 import type {
   ChecklistItem,
@@ -18,6 +19,7 @@ import type {
 export type WidgetHandlers = {
   onToggle: () => void;
   onIncrement: (delta: number) => void;
+  onSetValue: (value: number) => void;
   onSetMood: (value: number) => void;
   onEdit: () => void;
   onRemove: () => void;
@@ -70,6 +72,15 @@ export default function WidgetCard({
   const large = widget.size === "2x2";
   const value = state.value ?? 0;
   const target = widget.target ?? null;
+  const [typing, setTyping] = useState(false);
+  const [draft, setDraft] = useState("");
+  const typedPrimary = isLargeTarget(target);
+
+  function commitTyped() {
+    const n = Number(draft);
+    if (draft.trim() !== "" && Number.isFinite(n) && n >= 0) h.onSetValue(n);
+    setTyping(false);
+  }
   const pct =
     target != null
       ? Math.min(100, Math.round((value / target) * 100))
@@ -85,8 +96,8 @@ export default function WidgetCard({
 
   return (
     <div
-      className={`relative flex flex-col gap-3 rounded-2xl border p-4 ${spanClass}`}
-      style={{ background: "var(--surface)", borderColor: "var(--border)" }}
+      className={`relative flex flex-col gap-3 rounded-[20px] border p-[18px] ${spanClass}`}
+      style={{ background: "var(--surface)", borderColor: "var(--border)", boxShadow: "0 1px 2px rgba(15,23,42,.04), 0 6px 16px rgba(15,23,42,.05)" }}
     >
       {/* header */}
       <div className="flex items-start justify-between">
@@ -191,21 +202,39 @@ export default function WidgetCard({
 
       {mode === "stepper" && (
         <div className="flex flex-col gap-2.5">
-          <button type="button" onClick={() => h.onIncrement(stepFor(widget))} className="flex items-baseline gap-1.5 text-left" style={{ cursor: "pointer" }}>
-            <span className={`font-medium tracking-tight ${wide ? "text-3xl" : "text-2xl"}`}>{fmt(value)}</span>
-            {target != null && (
-              <span className="text-xs" style={{ color: "var(--muted)" }}>/ {fmt(target)} {widget.unit}</span>
-            )}
-          </button>
+          {typing ? (
+            <input
+              type="number"
+              inputMode="decimal"
+              autoFocus
+              value={draft}
+              onChange={(e) => setDraft(e.target.value)}
+              onBlur={commitTyped}
+              onKeyDown={(e) => { if (e.key === "Enter") commitTyped(); if (e.key === "Escape") setTyping(false); }}
+              placeholder={`Enter ${widget.unit ?? "value"}`}
+              className="pz-in w-full rounded-lg border px-3 py-2 text-2xl font-medium tracking-tight outline-none"
+              style={{ background: "var(--surface2)", borderColor: "var(--accent)", color: "var(--text)" }}
+            />
+          ) : (
+            <button type="button" onClick={() => { setDraft(value ? String(value) : ""); setTyping(true); }} aria-label="Type today's value" className="flex items-baseline gap-1.5 text-left" style={{ cursor: "text" }}>
+              <span className={`font-medium tracking-tight ${wide ? "text-3xl" : "text-2xl"}`}>{fmt(value)}</span>
+              {target != null && (
+                <span className="text-xs" style={{ color: "var(--muted)" }}>/ {fmt(target)} {widget.unit}</span>
+              )}
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--muted)" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" style={{ marginLeft: 2, opacity: 0.6 }}><path d="M12 20h9" /><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z" /></svg>
+            </button>
+          )}
           <div className="h-1.5 overflow-hidden rounded-full" style={{ background: "var(--surface2)" }}>
             <div className="h-full rounded-full" style={{ width: `${pct}%`, background: "var(--accent)", transition: "width .35s ease" }} />
           </div>
+          {/* +/- is secondary; typed entry above is primary for large targets */}
           <div className="flex items-center gap-2">
-            <button type="button" onClick={() => h.onIncrement(-stepFor(widget))} aria-label="Decrease" className="flex h-8 w-8 items-center justify-center rounded-lg" style={{ background: "var(--surface2)", color: "var(--text)", cursor: "pointer" }}>
+            <button type="button" onClick={() => h.onIncrement(-stepFor(widget))} aria-label={`Decrease by ${stepFor(widget)}`} className="flex h-8 w-8 items-center justify-center rounded-lg" style={{ background: "var(--surface2)", color: "var(--text)", cursor: "pointer" }}>
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round"><path d="M5 12h14" /></svg>
             </button>
-            <button type="button" onClick={() => h.onIncrement(stepFor(widget))} aria-label="Increase" className="flex h-8 flex-1 items-center justify-center rounded-lg text-white" style={{ background: "var(--accent)", cursor: "pointer" }}>
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round"><path d="M12 5v14M5 12h14" /></svg>
+            <button type="button" onClick={() => h.onIncrement(stepFor(widget))} aria-label={`Increase by ${stepFor(widget)}`} className="flex h-8 flex-1 items-center justify-center gap-1 rounded-lg" style={{ background: typedPrimary ? "var(--surface2)" : "var(--accent)", color: typedPrimary ? "var(--text)" : "#fff", border: typedPrimary ? "1px solid var(--border)" : "none", cursor: "pointer" }}>
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round"><path d="M12 5v14M5 12h14" /></svg>
+              <span className="text-[12px]">{stepFor(widget)}</span>
             </button>
           </div>
         </div>

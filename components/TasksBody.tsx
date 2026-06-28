@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import DatePicker from "./DatePicker";
 import type { Task } from "@/lib/widgets/types";
 
 type Props = {
@@ -43,7 +44,7 @@ export default function TasksBody({
   onDelete,
 }: Props) {
   const [title, setTitle] = useState("");
-  const [due, setDue] = useState("");
+  const [due, setDue] = useState<string | null>(null);
   const [editing, setEditing] = useState<string | null>(null);
   const [editTitle, setEditTitle] = useState("");
 
@@ -61,9 +62,9 @@ export default function TasksBody({
   function submitAdd() {
     const v = title.trim();
     if (!v) return;
-    onAdd(v, due || null);
+    onAdd(v, due);
     setTitle("");
-    setDue("");
+    setDue(null);
   }
   function commitRename(id: string) {
     const v = editTitle.trim();
@@ -167,13 +168,7 @@ export default function TasksBody({
           className="pz-in min-w-0 flex-1 rounded-lg border px-2.5 py-1.5 text-sm outline-none"
           style={{ background: "var(--surface2)", borderColor: "var(--border)", color: "var(--text)" }}
         />
-        <input
-          type="date"
-          value={due}
-          onChange={(e) => setDue(e.target.value)}
-          className="rounded-lg border px-2 py-1.5 text-[13px] outline-none"
-          style={{ background: "var(--surface2)", borderColor: "var(--border)", color: "var(--muted)" }}
-        />
+        <DatePicker value={due} onChange={setDue} todayIso={today} placeholder="Due date" />
         <button
           type="button"
           onClick={submitAdd}

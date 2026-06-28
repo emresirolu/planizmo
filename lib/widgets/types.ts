@@ -15,7 +15,6 @@ export const STREAK_TYPES: WidgetType[] = [
   "counter",
   "reading",
   "health",
-  "checklist",
 ];
 export function isStreakType(type: WidgetType): boolean {
   return STREAK_TYPES.includes(type);

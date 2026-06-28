@@ -11,6 +11,7 @@ import { setViewModeAction } from "@/lib/actions/timeline";
 import TimelineView from "./TimelineView";
 import HealthSummary from "./HealthSummary";
 import GoalsPanel from "./GoalsPanel";
+import AddWidgetSheet from "./AddWidgetSheet";
 import type { ClientTimeBlock } from "@/lib/plan/timeline";
 import type { ClientGoal } from "@/lib/goals/types";
 import type { HealthSummary as HealthSummaryData } from "@/lib/db/scoped";
@@ -46,6 +47,7 @@ export default function TodayView({ name, greeting, summary, today, widgets, ini
   const [logs, setLogs] = useState(initialLogs);
   const [tasks, setTasks] = useState(initialTasks);
   const [mode, setMode] = useState<ViewMode>(initialViewMode);
+  const [addingWidget, setAddingWidget] = useState(false);
   const [, startTransition] = useTransition();
   const timelineLocked = !can(plan, "timeline_mode");
 
@@ -154,10 +156,10 @@ export default function TodayView({ name, greeting, summary, today, widgets, ini
           )}
 
           <div className="mt-3.5 flex items-center justify-between border-t pt-3.5" style={{ borderColor: "var(--border)" }}>
-            <Link href="/dashboard/habits" className="flex items-center gap-1.5 text-[13.5px]" style={{ color: "var(--muted)" }}>
+            <button type="button" onClick={() => setAddingWidget(true)} className="flex items-center gap-1.5 text-[13.5px]" style={{ color: "var(--muted)", cursor: "pointer" }}>
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M12 5v14M5 12h14" /></svg>
-              Manage habits
-            </Link>
+              Add widget
+            </button>
             <Link href="/dashboard/planner" className="flex items-center gap-1.5 text-[13.5px] font-medium" style={{ color: "var(--accent)" }}>
               View full planner
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14M13 6l6 6-6 6" /></svg>
@@ -175,6 +177,9 @@ export default function TodayView({ name, greeting, summary, today, widgets, ini
           </div>
         </div>
       </div>
+      {addingWidget && (
+        <AddWidgetSheet onClose={() => setAddingWidget(false)} onAdded={() => { setAddingWidget(false); router.refresh(); }} />
+      )}
     </div>
   );
 }
@@ -192,6 +197,10 @@ function FlowRow({ widget, state, onLog }: { widget: ClientWidget; state: LogSta
   const mode = interactionMode(widget.type);
   const cat = categoryForWidgetType(widget.type);
   const value = state.value ?? 0;
+  const step = stepFor(widget);
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState("");
+
   const sub =
     widget.type === "mood"
       ? state.value ? MOOD_LABELS[state.value - 1] : "tap to log mood"
@@ -199,28 +208,52 @@ function FlowRow({ widget, state, onLog }: { widget: ClientWidget; state: LogSta
         ? `${value.toLocaleString("en-US")} / ${widget.target.toLocaleString("en-US")}${widget.unit ? ` ${widget.unit}` : ""}`
         : state.completed ? "done today" : "tap to log";
 
+  function commit() {
+    const n = Number(draft);
+    if (draft.trim() !== "" && Number.isFinite(n) && n >= 0) onLog({ kind: "set", value: n });
+    setEditing(false);
+  }
   const onClick = () => {
     if (mode === "toggle") onLog({ kind: "toggle" });
-    else if (mode === "stepper") onLog({ kind: "increment", delta: stepFor(widget) });
+    else if (mode === "stepper") { setDraft(value ? String(value) : ""); setEditing(true); }
   };
 
   return (
     <div className="flex items-center gap-3 rounded-[13px] border px-[13px] py-2.5" style={{ background: "var(--surface2)", borderColor: "var(--border)" }}>
-      <button type="button" onClick={onClick} className="flex min-w-0 flex-1 items-center gap-3 text-left" style={{ cursor: mode === "scale" ? "default" : "pointer" }} disabled={mode === "scale"}>
-        <span className="flex h-[34px] w-[34px] flex-none items-center justify-center rounded-[10px] border" style={{ background: "var(--surface)", borderColor: "var(--border)", color: state.completed ? "var(--accent)" : "var(--text)" }}>
-          <WidgetIcon name={widget.icon} size={18} />
-        </span>
-        <span className="min-w-0 flex-1">
-          <span className="block truncate text-sm font-medium" style={{ textDecoration: state.completed && mode === "toggle" ? "line-through" : "none", color: state.completed && mode === "toggle" ? "var(--muted)" : "var(--text)" }}>{widget.title}</span>
-          <span className="block text-[12.5px] capitalize" style={{ color: "var(--muted)" }}>{sub}</span>
-        </span>
-      </button>
+      <span className="flex h-[34px] w-[34px] flex-none items-center justify-center rounded-[10px] border" style={{ background: "var(--surface)", borderColor: "var(--border)", color: state.completed ? "var(--accent)" : "var(--text)" }}>
+        <WidgetIcon name={widget.icon} size={18} />
+      </span>
+      {mode === "stepper" && editing ? (
+        <input
+          type="number"
+          inputMode="decimal"
+          autoFocus
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          onBlur={commit}
+          onKeyDown={(e) => { if (e.key === "Enter") commit(); if (e.key === "Escape") setEditing(false); }}
+          placeholder={`Enter ${widget.unit ?? "value"}`}
+          className="pz-in min-w-0 flex-1 rounded-md border px-2 py-1 text-sm outline-none"
+          style={{ background: "var(--surface)", borderColor: "var(--accent)", color: "var(--text)" }}
+        />
+      ) : (
+        <button type="button" onClick={onClick} className="flex min-w-0 flex-1 items-center gap-3 text-left" style={{ cursor: mode === "scale" ? "default" : "pointer" }} disabled={mode === "scale"}>
+          <span className="min-w-0 flex-1">
+            <span className="block truncate text-sm font-medium" style={{ textDecoration: state.completed && mode === "toggle" ? "line-through" : "none", color: state.completed && mode === "toggle" ? "var(--muted)" : "var(--text)" }}>{widget.title}</span>
+            <span className="block text-[12.5px] capitalize" style={{ color: "var(--muted)" }}>{sub}</span>
+          </span>
+        </button>
+      )}
       {mode === "scale" ? (
         <div className="flex items-center gap-1.5">
           {[1, 2, 3, 4, 5].map((n) => (
             <button key={n} type="button" onClick={() => onLog({ kind: "set", value: n })} aria-label={`mood ${n}`} className="rounded-full" style={{ width: 14, height: 14, background: (state.value ?? 0) >= n ? "var(--accent)" : "var(--surface)", border: "1px solid var(--border)", cursor: "pointer" }} />
           ))}
         </div>
+      ) : mode === "stepper" ? (
+        <button type="button" onClick={() => onLog({ kind: "increment", delta: step })} aria-label={`Add ${step}`} className="flex flex-none items-center gap-0.5 rounded-lg border px-2 py-1 text-[12px]" style={{ background: "var(--surface)", borderColor: "var(--border)", color: "var(--muted)", cursor: "pointer" }}>
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round"><path d="M12 5v14M5 12h14" /></svg>{step}
+        </button>
       ) : (
         <Tag category={cat} />
       )}

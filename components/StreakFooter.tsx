@@ -10,12 +10,19 @@ type Props = {
 /** Streak/strength display. Strength is primary; copy is encouraging. */
 export default function StreakFooter({ stats, heatcells, showHeatmap }: Props) {
   const { currentStreak, longestStreak, strength } = stats;
-  const message =
-    currentStreak > 0
-      ? "On a roll."
-      : strength > 0
-        ? "Back on it today."
-        : "Log today to begin.";
+  const hasHistory = strength > 0 || currentStreak > 0 || longestStreak > 0;
+
+  // Fresh widget, no logs yet → an inviting neutral state, not "0% · failure".
+  if (!hasHistory) {
+    return (
+      <div className="mt-1 flex items-center gap-1.5 border-t pt-3 text-[12.5px]" style={{ borderColor: "var(--border)", color: "var(--muted)" }}>
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="var(--accent)"><path d="M12 3l1.7 4.7L18 9l-4.3 1.3L12 15l-1.7-4.7L6 9l4.3-1.3z" /></svg>
+        Tap to start your streak
+      </div>
+    );
+  }
+
+  const message = currentStreak > 0 ? "On a roll." : "Back on it today.";
 
   return (
     <div className="mt-1 flex flex-col gap-2.5 border-t pt-3" style={{ borderColor: "var(--border)" }}>
