@@ -19,6 +19,7 @@ import {
   widgets,
 } from "./schema";
 import { isDemoEmail, realProviderAvailable, selectedProviderName } from "@/lib/health/provider";
+import { isOwnerEmail, promoActive, promoUntilLabel, type Plan } from "@/lib/billing/plan";
 import type { ClientGoal, GoalStatus } from "@/lib/goals/types";
 import type { WeekPlan } from "@/lib/plan/types";
 import type { ClientWidget } from "@/lib/widgets/types";
@@ -129,9 +130,28 @@ async function myHealthProvider(): Promise<"mock" | "fitbit" | "none"> {
  * Plan + usage metering (Milestone 11). Plan is the source of truth for gating.
  * ------------------------------------------------------------------------- */
 
-export async function getMyPlan(): Promise<"free" | "pro"> {
+export type PlanContext = {
+  effective: Plan; // what gating uses (promo/owner aware)
+  raw: Plan; // the real persisted plan
+  promo: boolean; // effective Pro is from the launch promo
+  owner: boolean; // effective Pro is from OWNER_EMAILS
+  promoUntil: string | null;
+};
+
+/** Full plan picture, including the computed promo/owner overrides (no DB writes). */
+export async function getPlanContext(): Promise<PlanContext> {
   const profile = await getMyProfile();
-  return (profile?.plan as "free" | "pro") ?? "free";
+  const raw = (profile?.plan as Plan) ?? "free";
+  const email = await getMyEmail();
+  const owner = isOwnerEmail(email);
+  const promo = promoActive();
+  const effective: Plan = owner || promo ? "pro" : raw;
+  return { effective, raw, promo, owner, promoUntil: promoUntilLabel() };
+}
+
+/** Effective plan (promo/owner aware) — the single source of truth for gating. */
+export async function getMyPlan(): Promise<"free" | "pro"> {
+  return (await getPlanContext()).effective;
 }
 
 export async function countActiveGoals(): Promise<number> {
