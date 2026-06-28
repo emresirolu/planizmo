@@ -9,7 +9,7 @@ type Summary = {
   steps: number | null;
   stepsTarget: number;
   workout: { title: string; done: number; target: number | null } | null;
-  provider: "mock" | "fitbit";
+  provider: "mock" | "fitbit" | "none";
 };
 
 function fmtSleep(h: number): string {
@@ -49,6 +49,7 @@ export default function HealthSummary({ summary, compact }: { summary: Summary; 
   const [err, setErr] = useState<string | null>(null);
 
   const hasData = summary.sleepHours != null || summary.steps != null;
+  const connected = summary.provider !== "none";
 
   function syncNow() {
     setErr(null);
@@ -71,14 +72,20 @@ export default function HealthSummary({ summary, compact }: { summary: Summary; 
     <section className="rounded-[18px] border p-[18px]" style={{ background: "var(--surface)", borderColor: "var(--border)" }}>
       <div className="mb-3.5 flex items-center justify-between">
         <span className={`${compact ? "text-[14.5px]" : "text-[15px]"} font-semibold tracking-tight`}>Health summary</span>
-        <button type="button" onClick={syncNow} disabled={pending} className="text-[12.5px] font-medium disabled:opacity-60" style={{ color: "var(--accent)", cursor: "pointer" }}>
-          {pending ? "Syncing…" : "Sync now"}
-        </button>
+        {connected ? (
+          <button type="button" onClick={syncNow} disabled={pending} className="text-[12.5px] font-medium disabled:opacity-60" style={{ color: "var(--accent)", cursor: "pointer" }}>
+            {pending ? "Syncing…" : "Sync now"}
+          </button>
+        ) : (
+          <a href="/dashboard/health" className="text-[12.5px] font-medium" style={{ color: "var(--accent)" }}>Connect</a>
+        )}
       </div>
 
       {!hasData ? (
         <p className="text-[13px] leading-relaxed" style={{ color: "var(--muted)" }}>
-          No health data yet. {summary.provider === "fitbit" ? "Connect Fitbit and " : ""}tap “Sync now” to pull in sleep and steps.
+          {connected
+            ? "No health data yet — tap “Sync now” to pull in sleep and steps."
+            : "Connect a health source (Fitbit / Google Health) to see your sleep and steps here. You can also log them by hand."}
         </p>
       ) : (
         <div className="flex flex-col gap-[15px]">
@@ -101,7 +108,7 @@ export default function HealthSummary({ summary, compact }: { summary: Summary; 
       )}
 
       <div className="mt-3 text-[11px]" style={{ color: "var(--muted)" }}>
-        {summary.provider === "fitbit" ? "Synced from Fitbit" : "Sample data (mock provider)"}
+        {summary.provider === "fitbit" ? "Synced from Fitbit" : summary.provider === "mock" ? "Sample data (demo)" : "No health source connected"}
         {err && <span style={{ color: "var(--alert)" }}> · {err}</span>}
       </div>
     </section>

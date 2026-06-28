@@ -1,23 +1,26 @@
 import "server-only";
-import { mockProvider } from "./mock";
-import { fitbitConfigured, fitbitProvider } from "./fitbit";
-import type { HealthProvider, ProviderName } from "./types";
+import { fitbitConfigured } from "./fitbit";
 
-/** Which provider the env selects (before checking it's actually usable). */
-export function selectedProviderName(): ProviderName {
-  return process.env.HEALTH_PROVIDER === "fitbit" ? "fitbit" : "mock";
-}
+export type ProviderMode = "fitbit" | "mock" | "off";
 
 /**
- * The active provider. Real providers only run when explicitly selected AND
- * configured; otherwise we fall back to mock so the demo is never broken.
+ * Global health provider mode from env. Unset (or anything other than
+ * "fitbit"/"mock") means OFF — production can disable mock health entirely.
  */
-export function getProvider(): HealthProvider {
-  if (selectedProviderName() === "fitbit" && fitbitConfigured()) return fitbitProvider;
-  return mockProvider;
+export function selectedProviderName(): ProviderMode {
+  const v = process.env.HEALTH_PROVIDER;
+  if (v === "fitbit") return "fitbit";
+  if (v === "mock") return "mock";
+  return "off";
 }
 
-/** True when a real (non-mock) provider is driving sync — used to mark source. */
-export function isRealProviderActive(): boolean {
-  return getProvider().name !== "mock";
+/** The seeded demo account is the only account that gets mock health. */
+export function isDemoEmail(email: string | null | undefined): boolean {
+  const demo = process.env.DEMO_EMAIL;
+  return Boolean(demo && email && email.toLowerCase() === demo.toLowerCase());
+}
+
+/** Whether the real provider could run at all (selected + configured). */
+export function realProviderAvailable(): boolean {
+  return selectedProviderName() === "fitbit" && fitbitConfigured();
 }

@@ -1,5 +1,5 @@
 import { auth } from "@/auth";
-import { getMyPlan, getMyProfile } from "@/lib/db/scoped";
+import { getMyEmail, getMyPlan, getMyProfile } from "@/lib/db/scoped";
 import { syncHealthForUser } from "@/lib/health/sync";
 import { can, UPGRADE_COPY } from "@/lib/billing/plan";
 
@@ -16,7 +16,14 @@ export async function POST(): Promise<Response> {
   }
   try {
     const profile = await getMyProfile();
-    const r = await syncHealthForUser(session.user.id, profile?.timezone || "UTC");
+    const email = await getMyEmail();
+    const r = await syncHealthForUser(session.user.id, profile?.timezone || "UTC", email);
+    if (r.skipped) {
+      return Response.json(
+        { ok: false, connect: true, error: "No health source connected. Connect Fitbit or Google Health to sync." },
+        { status: 400 },
+      );
+    }
     return Response.json({ ok: true, ...r });
   } catch (e) {
     return Response.json(
