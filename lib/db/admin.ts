@@ -1,7 +1,7 @@
 import "server-only";
 import { and, eq, sql } from "drizzle-orm";
 import { db } from "./index";
-import { assistantMessages, profiles, streaks, widgets } from "./schema";
+import { assistantMessages, profiles, streaks, users, widgets } from "./schema";
 import { recomputeStreakForUser } from "@/lib/widgets/streak-service";
 import { syncHealthForUser } from "@/lib/health/sync";
 import { todayInTimeZone } from "@/lib/widgets/date";
@@ -89,13 +89,16 @@ export type HealthSyncSummary = { users: number; synced: number; failed: number 
 /** Sync sleep + steps for every user from the active provider. Idempotent. */
 export async function runHealthSyncAll(): Promise<HealthSyncSummary> {
   const allProfiles = await db
-    .select({ userId: profiles.userId, timezone: profiles.timezone, plan: profiles.plan })
-    .from(profiles);
+    .select({ userId: profiles.userId, timezone: profiles.timezone, plan: profiles.plan, email: users.email })
+    .from(profiles)
+    .innerJoin(users, eq(users.id, profiles.userId));
   const summary: HealthSyncSummary = { users: allProfiles.length, synced: 0, failed: 0 };
   for (const p of allProfiles) {
     if (p.plan !== "pro") continue; // health auto-sync is a Pro feature
     try {
-      const r = await syncHealthForUser(p.userId, p.timezone || "UTC");
+      // syncHealthForUser self-skips anyone without a resolved provider
+      // (mock = demo only; real = connected only), so real users get nothing.
+      const r = await syncHealthForUser(p.userId, p.timezone || "UTC", p.email);
       summary.synced += r.synced;
     } catch {
       summary.failed++; // e.g. a real provider not connected — never blocks others

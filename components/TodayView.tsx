@@ -229,14 +229,17 @@ function FlowRow({ widget, state, onLog }: { widget: ClientWidget; state: LogSta
 }
 
 function NextMove({ widgets, logs, dueToday }: { widgets: ClientWidget[]; logs: Record<string, LogState>; dueToday: Task[] }) {
-  // Grounded: first incomplete scheduled item, else a due task, else rest.
+  // Grounded only: no widgets/tasks → a calm invite, never invented activity.
+  const hasAny = widgets.length > 0 || dueToday.length > 0;
   const w = widgets.find((x) => !(logs[x.id]?.completed));
-  const target = w ? w.title : dueToday[0]?.title ?? null;
-  const rationale = w
-    ? "A clear next step keeps your momentum going — knock this out while you're fresh."
-    : dueToday[0]
-      ? "This is due today — a good moment to clear it."
-      : "You're on top of today. A short reflection or a head start on tomorrow would be a strong move.";
+  const target = !hasAny ? "Add your first widget" : w ? w.title : dueToday[0]?.title ?? null;
+  const rationale = !hasAny
+    ? "Add a habit or describe a goal and I'll suggest your best next move — grounded in what you're actually tracking."
+    : w
+      ? "A clear next step keeps your momentum going — knock this out while you're fresh."
+      : dueToday[0]
+        ? "This is due today — a good moment to clear it."
+        : "You're on top of today's plan. A short reflection or a head start on tomorrow would be a strong move.";
 
   function ask() { window.dispatchEvent(new Event("planizmo:assistant")); }
 
@@ -255,6 +258,7 @@ function NextMove({ widgets, logs, dueToday }: { widgets: ClientWidget[]; logs: 
         </span>
         <div className="min-w-0 flex-1">
           <div className="text-[19px] font-medium tracking-tight">{target ?? "Plan your day"}</div>
+          {/* grounded in real data only — no invented activity */}
           <p className="mt-1.5 text-[13.5px] leading-relaxed" style={{ color: "var(--muted)" }}>{rationale}</p>
         </div>
       </div>

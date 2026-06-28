@@ -26,8 +26,16 @@ const uuid = () => crypto.randomUUID();
 // ---- resolve target user ----
 let user;
 if (DEMO_EMAIL) {
+  // Must already exist: the account has to be created by a real Google sign-in
+  // so it's actually signed-in-able (a bare users row has no linked account).
   [user] = await sql`select id from users where email=${DEMO_EMAIL}`;
-  if (!user) [user] = await sql`insert into users (id,email,name) values (gen_random_uuid()::text,${DEMO_EMAIL},'Demo') returning id`;
+  if (!user) {
+    console.error(
+      `No user found for DEMO_EMAIL=${DEMO_EMAIL}.\n` +
+        `Sign in to the live app once with that Google account to create it, then re-run this seed.`,
+    );
+    process.exit(1);
+  }
 } else {
   [user] = await sql`select id from users order by 1 limit 1`;
   if (!user) [user] = await sql`insert into users (id,email,name) values (gen_random_uuid()::text,'demo@planizmo.app','Demo') returning id`;

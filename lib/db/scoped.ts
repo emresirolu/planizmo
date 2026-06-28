@@ -7,15 +7,18 @@ import {
   checklistItems,
   checklistLogs,
   goals,
+  integrations,
   layouts,
   logs,
   profiles,
   streaks,
   tasks,
   timeBlocks,
+  users,
   weekPlans,
   widgets,
 } from "./schema";
+import { isDemoEmail, realProviderAvailable, selectedProviderName } from "@/lib/health/provider";
 import type { ClientGoal, GoalStatus } from "@/lib/goals/types";
 import type { WeekPlan } from "@/lib/plan/types";
 import type { ClientWidget } from "@/lib/widgets/types";
@@ -98,6 +101,28 @@ export async function updateMyProfile(
 export async function getMyTimezone(): Promise<string> {
   const profile = await getMyProfile();
   return profile?.timezone || "UTC";
+}
+
+export async function getMyEmail(): Promise<string | null> {
+  const userId = await requireUserId();
+  const [row] = await db.select({ email: users.email }).from(users).where(eq(users.id, userId)).limit(1);
+  return row?.email ?? null;
+}
+
+/** The health provider that actually applies to this user (demo/connected/none). */
+async function myHealthProvider(): Promise<"mock" | "fitbit" | "none"> {
+  const userId = await requireUserId();
+  const mode = selectedProviderName();
+  if (mode === "fitbit" && realProviderAvailable()) {
+    const [i] = await db
+      .select({ id: integrations.id })
+      .from(integrations)
+      .where(and(eq(integrations.userId, userId), eq(integrations.provider, "fitbit")))
+      .limit(1);
+    return i ? "fitbit" : "none";
+  }
+  if (mode === "mock" && isDemoEmail(await getMyEmail())) return "mock";
+  return "none";
 }
 
 /* ---------------------------------------------------------------------------
@@ -383,7 +408,7 @@ export type HealthSummary = {
   steps: number | null;
   stepsTarget: number;
   workout: { title: string; done: number; target: number | null } | null;
-  provider: "mock" | "fitbit";
+  provider: "mock" | "fitbit" | "none";
 };
 
 /** Health Summary panel data (Sleep/Steps from sync; Workout from gym habit). */
@@ -415,7 +440,7 @@ export async function getHealthSummary(): Promise<HealthSummary> {
     steps: snap.steps,
     stepsTarget: 8000,
     workout,
-    provider: process.env.HEALTH_PROVIDER === "fitbit" ? "fitbit" : "mock",
+    provider: await myHealthProvider(),
   };
 }
 
