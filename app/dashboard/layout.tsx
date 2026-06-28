@@ -3,6 +3,7 @@ import { auth } from "@/auth";
 import { BottomNav, SideNav } from "@/components/nav";
 import TopBar from "@/components/TopBar";
 import AssistantRail from "@/components/AssistantRail";
+import OperatorBar from "@/components/OperatorBar";
 import PromoBanner from "@/components/PromoBanner";
 import { getMyProfile, getPlanContext } from "@/lib/db/scoped";
 
@@ -48,6 +49,9 @@ export default async function DashboardLayout({
               <PromoBanner until={planCtx.promoUntil} />
             </div>
           )}
+          <div className="mb-5">
+            <OperatorBar />
+          </div>
           {children}
         </main>
         <BottomNav />

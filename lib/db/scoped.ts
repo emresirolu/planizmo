@@ -368,6 +368,15 @@ export async function upsertLog(
   return row;
 }
 
+/** Remove a (widget, day) log entirely. Used to undo a talk-to-log entry that
+ *  created a brand-new log (no prior state to restore to). */
+export async function deleteLog(widgetId: string, date: string): Promise<void> {
+  const userId = await requireUserId();
+  await db
+    .delete(logs)
+    .where(and(eq(logs.userId, userId), eq(logs.widgetId, widgetId), eq(logs.date, date)));
+}
+
 export async function updateWidget(
   widgetId: string,
   patch: Partial<{
