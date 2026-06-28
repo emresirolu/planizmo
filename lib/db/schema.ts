@@ -371,3 +371,60 @@ export const timeBlocks = pgTable("time_blocks", {
     .notNull()
     .defaultNow(),
 });
+
+/* ============================================================
+ * Gym (Phase 3) — body metrics over time + workout log
+ * ==========================================================*/
+
+// One row per user per day; columns are independently nullable so the user can
+// log just weight, or weight + body-fat, etc. Upserted on (user_id, date).
+export const bodyMetrics = pgTable(
+  "body_metrics",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    date: date("date").notNull(),
+    weight: numeric("weight"), // in the user's weight unit (kg by default)
+    bodyFatPct: numeric("body_fat_pct"),
+    muscleMass: numeric("muscle_mass"),
+    notes: text("notes"),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [uniqueIndex("body_metrics_user_date_unq").on(t.userId, t.date)],
+);
+
+export const workouts = pgTable("workouts", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  userId: text("user_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  date: date("date").notNull(),
+  name: text("name").notNull(),
+  durationMin: integer("duration_min"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});
+
+export const workoutSets = pgTable("workout_sets", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  userId: text("user_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  workoutId: uuid("workout_id")
+    .notNull()
+    .references(() => workouts.id, { onDelete: "cascade" }),
+  exercise: text("exercise").notNull(),
+  sets: integer("sets"),
+  reps: integer("reps"),
+  weight: numeric("weight"),
+  position: integer("position").notNull().default(0),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});

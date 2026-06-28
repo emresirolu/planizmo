@@ -6,41 +6,47 @@ import type { WidgetType } from "@/lib/widgets/types";
 
 /**
  * Talk-to-log: turn a plain-language sentence ("hit the gym, 180g protein,
- * 3h screen time, weighed 78kg") into structured updates to the user's
- * trackers. The sentence + the user's tracker list are sent to DeepSeek with a
- * strict JSON-output prompt; we then validate every returned id against the
- * user's own widgets so the model can never address a tracker that isn't theirs.
- *
- * Phase 2 targets the existing trackers (widgets/logs). Gym body-metrics and
- * calendar items become additional parse targets in Phases 3 and 5.
+ * 3h screen time, weighed 78kg") into structured updates to the user's trackers
+ * AND gym body-metrics. The sentence + the user's targets are sent to DeepSeek
+ * with a strict JSON-output prompt; we then validate every returned id against
+ * the user's own targets so the model can never address something that isn't
+ * theirs. Calendar items become an additional target in Phase 5.
  */
 
-/** A tracker as described to the model (no DB internals leak to the prompt). */
-type TrackerForPrompt = {
+/** Synthetic gym body-metric targets, addressable like trackers. */
+export const BODY_TARGETS: {
   id: string;
+  field: "weight" | "bodyFatPct" | "muscleMass";
   title: string;
-  type: WidgetType;
-  unit: string | null;
-  target: number | null;
-};
+  unit: string;
+}[] = [
+  { id: "body:weight", field: "weight", title: "Weight", unit: "kg" },
+  { id: "body:bodyFatPct", field: "bodyFatPct", title: "Body fat", unit: "%" },
+  { id: "body:muscleMass", field: "muscleMass", title: "Muscle mass", unit: "kg" },
+];
+
+export function bodyFieldFor(id: string): "weight" | "bodyFatPct" | "muscleMass" | null {
+  return BODY_TARGETS.find((b) => b.id === id)?.field ?? null;
+}
+
+type TargetForPrompt = { id: string; title: string; type: string; unit: string | null; target: number | null };
 
 /** One update the model proposes, after server-side validation. */
 export type ParsedItem = {
-  widgetId: string;
-  /** Numeric value for counters/health/reading/mood; null for binary habits. */
+  targetId: string; // widget uuid OR "body:weight" etc.
+  kind: "widget" | "body";
+  binary: boolean; // true only for yes/no habit widgets
   value: number | null;
-  /** Whether this completes a binary habit (true) — numeric items derive this. */
-  completeBinary: boolean;
-  /** Model's confidence the phrase maps to this tracker & value. */
+  title: string;
+  unit: string | null;
+  type: WidgetType | "body";
   confidence: "high" | "low";
-  /** Why it's uncertain or flagged (shown when we ask the user to confirm). */
   reason: string | null;
 };
 
 export type ParseResult = {
   items: ParsedItem[];
   unmatched: string[];
-  /** True when no model was available (key missing) — caller shows a hint. */
   noModel?: boolean;
 };
 
@@ -49,7 +55,7 @@ const SYSTEM = `You convert a person's plain-language log of what they did today
 You are given a JSON array "trackers", each: {id, title, type, unit, target}.
 - type "habit": a yes/no thing (e.g. "gym", "meditate"). It is either done or not — no number.
 - type "mood": rate 1-5 (1 rough, 5 great).
-- type "counter"/"health"/"reading": a number in the tracker's unit (e.g. protein in g, steps, sleep in hours).
+- type "counter"/"health"/"reading"/"body": a number in the tracker's unit (e.g. protein in g, steps, sleep in hours, weight in kg).
 
 Return ONLY this JSON object:
 {
@@ -61,14 +67,14 @@ Return ONLY this JSON object:
 
 Rules:
 - Only use ids from the given trackers. Never invent an id, tracker, or number.
-- For a habit, set value to null (its presence means "done"). For mood, value is 1-5. For numeric trackers, value is the number in the tracker's unit (convert if the user used a different unit, e.g. "2k steps" -> 2000; "an hour and a half" -> 1.5 for an hours unit).
+- For a habit, set value to null (its presence means "done"). For mood, value is 1-5. For numeric trackers, value is the number in the tracker's unit (convert if the user used a different unit, e.g. "2k steps" -> 2000; "an hour and a half" -> 1.5 for an hours unit; "172 lb" -> 78 for a kg weight tracker).
 - confidence "high" only when both the tracker AND the value are unambiguous. Use "low" (with a short reason) when you guessed which tracker, converted an unclear unit, or the value seems unusual.
 - If a phrase doesn't clearly map to any tracker, put the phrase in "unmatched" rather than forcing a match.
 - Output the JSON object only — no prose, no code fences.`;
 
-/** Plausible-range check per tracker, so a fat-fingered/odd value gets confirmed. */
+/** Plausible-range check per target, so a fat-fingered/odd value gets confirmed. */
 export function sanityReason(
-  w: Pick<TrackerForPrompt, "title" | "type" | "unit" | "target">,
+  w: { title: string; type: string; unit: string | null; target: number | null },
   value: number | null,
 ): string | null {
   if (value == null) return null;
@@ -78,18 +84,18 @@ export function sanityReason(
   const u = (w.unit ?? "").toLowerCase();
   const t = w.title.toLowerCase();
   const between = (lo: number, hi: number, label: string) =>
-    value < lo || value > hi ? `${label} usually falls between ${lo} and ${hi} ${w.unit ?? ""}`.trim() : null;
+    value < lo || value > hi ? `${label} usually falls between ${lo} and ${hi}${w.unit ? " " + w.unit : ""}` : null;
 
   if (w.type === "mood") return value >= 1 && value <= 5 ? null : "mood is rated 1–5";
+  if (/body fat|bodyfat/.test(t) || (u === "%" && /fat/.test(t))) return between(1, 75, "body fat");
   if (u === "hours" || /sleep|screen/.test(t)) return between(0, 24, "this");
   if (u === "g" || /protein/.test(t)) return between(0, 500, "this");
   if (/cal/.test(u) || /calorie/.test(t)) return between(0, 12000, "this");
   if (u === "steps" || /steps/.test(t)) return between(0, 120000, "this");
-  if (/kg/.test(u) || (/weigh|weight/.test(t) && !/lb/.test(u))) return between(20, 400, "weight");
+  if (/kg/.test(u) || (/weigh|weight|muscle/.test(t) && !/lb/.test(u))) return between(20, 400, "that");
   if (/lb/.test(u)) return between(40, 880, "weight");
   if (/glass|cup|ml|water/.test(u + t)) return value > 10000 ? "that's a lot of water" : null;
 
-  // Generic guard: way past a defined target reads as a likely typo.
   if (w.target != null && w.target > 0 && value > w.target * 6)
     return `that's well above your target of ${w.target}${w.unit ? " " + w.unit : ""}`;
   if (w.target == null && value > 1_000_000) return "that value looks too large";
@@ -98,25 +104,29 @@ export function sanityReason(
 
 type RawMatch = { id?: unknown; value?: unknown; confidence?: unknown; reason?: unknown };
 
-export async function parseTalkToLog(
-  text: string,
-  widgets: Widget[],
-): Promise<ParseResult> {
-  // Only trackers we can log against (lists/tasks have their own surfaces).
+export async function parseTalkToLog(text: string, widgets: Widget[]): Promise<ParseResult> {
   const loggable = widgets.filter(
     (w) => w.type === "habit" || w.type === "mood" || w.type === "counter" || w.type === "health" || w.type === "reading",
   );
-  if (loggable.length === 0) return { items: [], unmatched: [] };
-  if (!hasDeepSeekKey()) return { items: [], unmatched: [], noModel: true };
 
-  const trackers: TrackerForPrompt[] = loggable.map((w) => ({
-    id: w.id,
-    title: w.title,
-    type: w.type,
-    unit: w.unit ?? null,
-    target: w.target ?? null,
-  }));
-  const byId = new Map(loggable.map((w) => [w.id, w]));
+  // Source-of-truth lookup for every addressable target.
+  type Source =
+    | { kind: "widget"; type: WidgetType; title: string; unit: string | null; target: number | null }
+    | { kind: "body"; type: "body"; title: string; unit: string | null; target: null };
+  const byId = new Map<string, Source>();
+  const trackers: TargetForPrompt[] = [];
+
+  for (const w of loggable) {
+    byId.set(w.id, { kind: "widget", type: w.type, title: w.title, unit: w.unit ?? null, target: w.target ?? null });
+    trackers.push({ id: w.id, title: w.title, type: w.type, unit: w.unit ?? null, target: w.target ?? null });
+  }
+  for (const b of BODY_TARGETS) {
+    byId.set(b.id, { kind: "body", type: "body", title: b.title, unit: b.unit, target: null });
+    trackers.push({ id: b.id, title: b.title, type: "body", unit: b.unit, target: null });
+  }
+
+  if (trackers.length === 0) return { items: [], unmatched: [] };
+  if (!hasDeepSeekKey()) return { items: [], unmatched: [], noModel: true };
 
   const messages: ChatMsg[] = [
     { role: "system", content: SYSTEM },
@@ -125,7 +135,7 @@ export async function parseTalkToLog(
 
   let raw: string;
   try {
-    raw = await callDeepSeek(messages, 500, { json: true, timeoutMs: 15_000 });
+    raw = await callDeepSeek(messages, 600, { json: true, timeoutMs: 15_000 });
   } catch {
     return { items: [], unmatched: [], noModel: true };
   }
@@ -145,17 +155,17 @@ export async function parseTalkToLog(
   const seen = new Set<string>();
   for (const m of Array.isArray(parsed.matches) ? parsed.matches : []) {
     const id = typeof m.id === "string" ? m.id : null;
-    const w = id ? byId.get(id) : undefined;
-    if (!w || seen.has(w.id)) continue; // drop unknown/other-user ids and dupes
-    seen.add(w.id);
+    const src = id ? byId.get(id) : undefined;
+    if (!id || !src || seen.has(id)) continue;
+    seen.add(id);
 
-    const isBinary = w.type === "habit";
+    const binary = src.kind === "widget" && src.type === "habit";
     let value: number | null = null;
-    if (!isBinary) {
+    if (!binary) {
       const n = typeof m.value === "number" ? m.value : Number(m.value);
       value = Number.isFinite(n) ? n : null;
       if (value == null) {
-        unmatched.push(w.title);
+        unmatched.push(src.title);
         continue;
       }
     }
@@ -164,13 +174,23 @@ export async function parseTalkToLog(
     let reason: string | null =
       typeof m.reason === "string" && m.reason.trim() ? m.reason.trim().slice(0, 120) : null;
 
-    const flag = sanityReason(w, value);
+    const flag = sanityReason({ title: src.title, type: src.type, unit: src.unit, target: src.target }, value);
     if (flag) {
       confidence = "low";
       reason = flag;
     }
 
-    items.push({ widgetId: w.id, value, completeBinary: isBinary, confidence, reason });
+    items.push({
+      targetId: id,
+      kind: src.kind,
+      binary,
+      value,
+      title: src.title,
+      unit: src.unit,
+      type: src.type,
+      confidence,
+      reason,
+    });
   }
 
   return { items, unmatched };

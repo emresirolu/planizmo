@@ -1,9 +1,10 @@
 import "server-only";
-import { and, asc, desc, eq, gte, sql, type SQL } from "drizzle-orm";
+import { and, asc, desc, eq, gte, inArray, sql, type SQL } from "drizzle-orm";
 import { auth } from "@/auth";
 import { db } from "./index";
 import {
   assistantMessages,
+  bodyMetrics,
   checklistItems,
   checklistLogs,
   goals,
@@ -17,6 +18,8 @@ import {
   users,
   weekPlans,
   widgets,
+  workouts,
+  workoutSets,
 } from "./schema";
 import { isDemoEmail, realProviderAvailable, selectedProviderName } from "@/lib/health/provider";
 import { isOwnerEmail, promoActive, promoUntilLabel, type Plan } from "@/lib/billing/plan";
@@ -989,4 +992,155 @@ export async function firstTasksWidget(): Promise<Widget | null> {
     .orderBy(asc(widgets.position), asc(widgets.createdAt))
     .limit(1);
   return row ?? null;
+}
+
+/* ---------------------------------------------------------------------------
+ * Gym — body metrics + workouts (Phase 3). All scoped to the session user.
+ * ------------------------------------------------------------------------- */
+
+export type BodyMetric = typeof bodyMetrics.$inferSelect;
+export type Workout = typeof workouts.$inferSelect;
+export type WorkoutSet = typeof workoutSets.$inferSelect;
+
+/** Body metrics from `fromDate` (inclusive), oldest-first — for trend charts. */
+export async function getBodyMetricsSince(fromDate: string): Promise<BodyMetric[]> {
+  const userId = await requireUserId();
+  return db
+    .select()
+    .from(bodyMetrics)
+    .where(and(eq(bodyMetrics.userId, userId), gte(bodyMetrics.date, fromDate)))
+    .orderBy(asc(bodyMetrics.date));
+}
+
+/** A single day's body-metric row, or null. */
+export async function getBodyMetric(date: string): Promise<BodyMetric | null> {
+  const userId = await requireUserId();
+  const [row] = await db
+    .select()
+    .from(bodyMetrics)
+    .where(and(eq(bodyMetrics.userId, userId), eq(bodyMetrics.date, date)))
+    .limit(1);
+  return row ?? null;
+}
+
+/** Most recent body-metric row (any field), or null. */
+export async function latestBodyMetric(): Promise<BodyMetric | null> {
+  const userId = await requireUserId();
+  const [row] = await db
+    .select()
+    .from(bodyMetrics)
+    .where(eq(bodyMetrics.userId, userId))
+    .orderBy(desc(bodyMetrics.date))
+    .limit(1);
+  return row ?? null;
+}
+
+/**
+ * Upsert one day's body metrics. Only the fields present in `patch` are written,
+ * so logging weight never wipes a previously-logged body-fat reading.
+ */
+export async function upsertBodyMetric(
+  date: string,
+  patch: Partial<{ weight: number | null; bodyFatPct: number | null; muscleMass: number | null; notes: string | null }>,
+): Promise<BodyMetric> {
+  const userId = await requireUserId();
+  const set: Record<string, unknown> = {};
+  if (patch.weight !== undefined) set.weight = patch.weight == null ? null : String(patch.weight);
+  if (patch.bodyFatPct !== undefined) set.bodyFatPct = patch.bodyFatPct == null ? null : String(patch.bodyFatPct);
+  if (patch.muscleMass !== undefined) set.muscleMass = patch.muscleMass == null ? null : String(patch.muscleMass);
+  if (patch.notes !== undefined) set.notes = patch.notes;
+
+  const [row] = await db
+    .insert(bodyMetrics)
+    .values({ userId, date, ...(set as object) })
+    .onConflictDoUpdate({ target: [bodyMetrics.userId, bodyMetrics.date], set })
+    .returning();
+  return row;
+}
+
+export async function listRecentWorkouts(limit = 30): Promise<Workout[]> {
+  const userId = await requireUserId();
+  return db
+    .select()
+    .from(workouts)
+    .where(eq(workouts.userId, userId))
+    .orderBy(desc(workouts.date), desc(workouts.createdAt))
+    .limit(limit);
+}
+
+export async function getWorkout(workoutId: string): Promise<Workout | null> {
+  const userId = await requireUserId();
+  const [row] = await db
+    .select()
+    .from(workouts)
+    .where(and(eq(workouts.userId, userId), eq(workouts.id, workoutId)))
+    .limit(1);
+  return row ?? null;
+}
+
+export async function addWorkout(input: {
+  date: string;
+  name: string;
+  durationMin: number | null;
+  notes: string | null;
+}): Promise<Workout> {
+  const userId = await requireUserId();
+  const [row] = await db
+    .insert(workouts)
+    .values({
+      userId,
+      date: input.date,
+      name: input.name,
+      durationMin: input.durationMin,
+      notes: input.notes,
+    })
+    .returning();
+  return row;
+}
+
+export async function deleteWorkout(workoutId: string): Promise<boolean> {
+  const userId = await requireUserId();
+  const deleted = await db
+    .delete(workouts)
+    .where(and(eq(workouts.userId, userId), eq(workouts.id, workoutId)))
+    .returning({ id: workouts.id });
+  return deleted.length > 0;
+}
+
+/** Add a set to a workout the user owns. Returns null if the workout isn't theirs. */
+export async function addWorkoutSet(input: {
+  workoutId: string;
+  exercise: string;
+  sets: number | null;
+  reps: number | null;
+  weight: number | null;
+  position?: number;
+}): Promise<WorkoutSet | null> {
+  const userId = await requireUserId();
+  const owned = await getWorkout(input.workoutId);
+  if (!owned) return null;
+  const [row] = await db
+    .insert(workoutSets)
+    .values({
+      userId,
+      workoutId: input.workoutId,
+      exercise: input.exercise,
+      sets: input.sets,
+      reps: input.reps,
+      weight: input.weight == null ? null : String(input.weight),
+      position: input.position ?? 0,
+    })
+    .returning();
+  return row;
+}
+
+/** All sets belonging to the given workout ids (and the session user). */
+export async function getSetsForWorkoutIds(ids: string[]): Promise<WorkoutSet[]> {
+  if (ids.length === 0) return [];
+  const userId = await requireUserId();
+  return db
+    .select()
+    .from(workoutSets)
+    .where(and(eq(workoutSets.userId, userId), inArray(workoutSets.workoutId, ids)))
+    .orderBy(asc(workoutSets.position), asc(workoutSets.createdAt));
 }

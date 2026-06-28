@@ -5,10 +5,10 @@ import { useEffect, useRef, useState } from "react";
 
 /* ---- shapes mirror the /api/operator responses ---- */
 type AppliedItem = {
-  widgetId: string;
+  targetId: string;
+  kind: "widget" | "body";
   title: string;
   unit: string | null;
-  type: string;
   date: string;
   value: number | null;
   completed: boolean;
@@ -17,10 +17,11 @@ type AppliedItem = {
   hadLog: boolean;
 };
 type PendingItem = {
-  widgetId: string;
+  targetId: string;
+  kind: "widget" | "body";
+  binary: boolean;
   title: string;
   unit: string | null;
-  type: string;
   value: number | null;
   reason: string | null;
 };
@@ -115,7 +116,7 @@ export default function OperatorBar() {
       setNoModel(Boolean(d.noModel));
       const nothing = !(d.applied?.length || d.pending?.length || d.unmatched?.length || d.noModel);
       if (nothing) setNote("I didn't catch anything to log — mention a tracker, e.g. “180g protein” or “8k steps”.");
-      setEdits(Object.fromEntries((d.pending || []).map((p) => [p.widgetId, p.value == null ? "" : String(p.value)])));
+      setEdits(Object.fromEntries((d.pending || []).map((p) => [p.targetId, p.value == null ? "" : String(p.value)])));
       if ((d.applied || []).length > 0) {
         setInput("");
         refreshData();
@@ -128,24 +129,24 @@ export default function OperatorBar() {
   }
 
   async function confirmPending(item: PendingItem) {
-    if (confirming[item.widgetId]) return;
-    const isBinary = item.type === "habit";
-    const value = isBinary ? null : Number(edits[item.widgetId]);
+    if (confirming[item.targetId]) return;
+    const isBinary = item.binary;
+    const value = isBinary ? null : Number(edits[item.targetId]);
     if (!isBinary && !Number.isFinite(value)) {
       setError("Enter a number to log that one.");
       return;
     }
-    setConfirming((c) => ({ ...c, [item.widgetId]: true }));
+    setConfirming((c) => ({ ...c, [item.targetId]: true }));
     try {
       const res = await fetch("/api/operator", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ op: "apply", items: [{ widgetId: item.widgetId, value, date }] }),
+        body: JSON.stringify({ op: "apply", items: [{ targetId: item.targetId, kind: item.kind, value, date }] }),
       });
       const d = (await res.json().catch(() => ({}))) as { ok: boolean; applied: AppliedItem[] };
       if (d.ok && d.applied?.length) {
         setApplied((a) => [...a, ...d.applied]);
-        setPending((p) => p.filter((x) => x.widgetId !== item.widgetId));
+        setPending((p) => p.filter((x) => x.targetId !== item.targetId));
         refreshData();
       } else {
         setError("Couldn't save that one — try again.");
@@ -153,12 +154,12 @@ export default function OperatorBar() {
     } catch {
       setError("Couldn't save that one — try again.");
     } finally {
-      setConfirming((c) => ({ ...c, [item.widgetId]: false }));
+      setConfirming((c) => ({ ...c, [item.targetId]: false }));
     }
   }
 
-  function skipPending(widgetId: string) {
-    setPending((p) => p.filter((x) => x.widgetId !== widgetId));
+  function skipPending(targetId: string) {
+    setPending((p) => p.filter((x) => x.targetId !== targetId));
   }
 
   async function undoAll() {
@@ -231,7 +232,7 @@ export default function OperatorBar() {
               <div className="flex flex-wrap items-center gap-2">
                 {applied.map((a) => (
                   <span
-                    key={a.widgetId}
+                    key={a.targetId}
                     className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[12.5px] font-medium"
                     style={{ background: "color-mix(in srgb, var(--success, #3a9d6e) 16%, transparent)", color: "var(--success, #3a9d6e)" }}
                   >
@@ -248,17 +249,17 @@ export default function OperatorBar() {
 
             {/* pending — ambiguous / odd values, confirmed before writing */}
             {pending.map((p) => {
-              const isBinary = p.type === "habit";
+              const isBinary = p.binary;
               return (
-                <div key={p.widgetId} className="flex flex-wrap items-center gap-2 rounded-[12px] border px-3 py-2" style={{ borderColor: "var(--border)", background: "var(--surface2)" }}>
+                <div key={p.targetId} className="flex flex-wrap items-center gap-2 rounded-[12px] border px-3 py-2" style={{ borderColor: "var(--border)", background: "var(--surface2)" }}>
                   <span className="text-[13px] font-medium">{p.title}</span>
                   {!isBinary && (
                     <span className="inline-flex items-center gap-1">
                       <input
                         type="number"
                         inputMode="decimal"
-                        value={edits[p.widgetId] ?? ""}
-                        onChange={(e) => setEdits((m) => ({ ...m, [p.widgetId]: e.target.value }))}
+                        value={edits[p.targetId] ?? ""}
+                        onChange={(e) => setEdits((m) => ({ ...m, [p.targetId]: e.target.value }))}
                         className="pz-in w-20 rounded-lg border px-2 py-1 text-[13px] outline-none"
                         style={{ background: "var(--surface)", borderColor: "var(--border)", color: "var(--text)" }}
                       />
@@ -267,10 +268,10 @@ export default function OperatorBar() {
                   )}
                   {p.reason && <span className="text-[12px]" style={{ color: "var(--muted)" }}>· {p.reason}</span>}
                   <span className="flex-1" />
-                  <button type="button" disabled={confirming[p.widgetId]} onClick={() => void confirmPending(p)} className="rounded-full px-3 py-1 text-[12.5px] font-medium text-white disabled:opacity-50" style={{ background: "var(--accent)", cursor: "pointer" }}>
+                  <button type="button" disabled={confirming[p.targetId]} onClick={() => void confirmPending(p)} className="rounded-full px-3 py-1 text-[12.5px] font-medium text-white disabled:opacity-50" style={{ background: "var(--accent)", cursor: "pointer" }}>
                     {isBinary ? "Yes, log it" : "Log it"}
                   </button>
-                  <button type="button" onClick={() => skipPending(p.widgetId)} className="rounded-full border px-3 py-1 text-[12.5px]" style={{ borderColor: "var(--border)", color: "var(--muted)", cursor: "pointer" }}>
+                  <button type="button" onClick={() => skipPending(p.targetId)} className="rounded-full border px-3 py-1 text-[12.5px]" style={{ borderColor: "var(--border)", color: "var(--muted)", cursor: "pointer" }}>
                     Skip
                   </button>
                 </div>

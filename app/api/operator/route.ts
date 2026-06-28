@@ -1,31 +1,35 @@
 import { NextResponse } from "next/server";
 import {
   deleteLog,
+  getBodyMetric,
   getLog,
   getMyTimezone,
   getMyWidget,
   listMyWidgets,
   requireUserId,
+  upsertBodyMetric,
   upsertLog,
   UnauthenticatedError,
 } from "@/lib/db/scoped";
 import { todayInTimeZone } from "@/lib/widgets/date";
 import { nextLogState } from "@/lib/widgets/logic";
 import { recomputeMyStreak } from "@/lib/widgets/streak-service";
-import { isStreakType, type LogState, type WidgetType } from "@/lib/widgets/types";
+import { isStreakType, type LogState } from "@/lib/widgets/types";
 import { allowRequest } from "@/lib/assistant/ratelimit";
-import { parseTalkToLog } from "@/lib/assistant/talk-to-log";
+import { bodyFieldFor, parseTalkToLog, BODY_TARGETS } from "@/lib/assistant/talk-to-log";
 
 export const runtime = "nodejs";
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
+type Kind = "widget" | "body";
+
 /** Shape returned for an entry that was actually written (carries undo state). */
 type AppliedItem = {
-  widgetId: string;
+  targetId: string;
+  kind: Kind;
   title: string;
   unit: string | null;
-  type: WidgetType;
   date: string;
   value: number | null;
   completed: boolean;
@@ -34,12 +38,12 @@ type AppliedItem = {
   hadLog: boolean;
 };
 
-/** Shape for an entry we want the user to confirm before writing. */
 type PendingItem = {
-  widgetId: string;
+  targetId: string;
+  kind: Kind;
+  binary: boolean;
   title: string;
   unit: string | null;
-  type: WidgetType;
   value: number | null;
   reason: string | null;
 };
@@ -49,13 +53,43 @@ async function resolveDate(input: unknown): Promise<string> {
   return todayInTimeZone(await getMyTimezone());
 }
 
-/** Write one update through the scoped helpers; returns undo state, or null if
- *  the widget isn't the user's (ownership is enforced by getMyWidget). */
-async function applyOne(widgetId: string, value: number | null, date: string): Promise<AppliedItem | null> {
-  const w = await getMyWidget(widgetId);
-  if (!w) return null;
+function bodyTitle(targetId: string): { title: string; unit: string | null } {
+  const b = BODY_TARGETS.find((x) => x.id === targetId);
+  return { title: b?.title ?? "Body metric", unit: b?.unit ?? null };
+}
 
-  const existing = await getLog(widgetId, date);
+/** Apply one update (widget log or body metric). Returns undo state, or null if
+ *  the target isn't the user's (ownership enforced by scoped helpers). */
+async function applyOne(
+  targetId: string,
+  kind: Kind,
+  value: number | null,
+  date: string,
+): Promise<AppliedItem | null> {
+  if (kind === "body") {
+    const field = bodyFieldFor(targetId);
+    if (!field || value == null) return null;
+    const prev = await getBodyMetric(date);
+    const prevValue = prev && prev[field] != null ? Number(prev[field]) : null;
+    await upsertBodyMetric(date, { [field]: value });
+    const { title, unit } = bodyTitle(targetId);
+    return {
+      targetId,
+      kind,
+      title,
+      unit,
+      date,
+      value,
+      completed: false,
+      prevValue,
+      prevCompleted: false,
+      hadLog: prevValue != null,
+    };
+  }
+
+  const w = await getMyWidget(targetId);
+  if (!w) return null;
+  const existing = await getLog(targetId, date);
   const prev: LogState = {
     value: existing?.value != null ? Number(existing.value) : null,
     completed: existing?.completed ?? false,
@@ -65,14 +99,14 @@ async function applyOne(widgetId: string, value: number | null, date: string): P
       ? { value: prev.value, completed: true } // binary habit: presence = done
       : nextLogState({ type: w.type, target: w.target ?? null }, prev, { kind: "set", value });
 
-  const row = await upsertLog(widgetId, date, next);
-  if (isStreakType(w.type)) await recomputeMyStreak(widgetId, date);
+  const row = await upsertLog(targetId, date, next);
+  if (isStreakType(w.type)) await recomputeMyStreak(targetId, date);
 
   return {
-    widgetId,
+    targetId,
+    kind,
     title: w.title,
     unit: w.unit ?? null,
-    type: w.type,
     date,
     value: row.value != null ? Number(row.value) : null,
     completed: row.completed,
@@ -82,15 +116,27 @@ async function applyOne(widgetId: string, value: number | null, date: string): P
   };
 }
 
-async function undoOne(it: AppliedItem): Promise<void> {
-  const w = await getMyWidget(it.widgetId);
+async function undoOne(it: {
+  targetId: string;
+  kind: Kind;
+  date: string;
+  prevValue: number | null;
+  prevCompleted: boolean;
+  hadLog: boolean;
+}): Promise<void> {
+  if (it.kind === "body") {
+    const field = bodyFieldFor(it.targetId);
+    if (field) await upsertBodyMetric(it.date, { [field]: it.prevValue });
+    return;
+  }
+  const w = await getMyWidget(it.targetId);
   if (!w) return;
   if (it.hadLog) {
-    await upsertLog(it.widgetId, it.date, { value: it.prevValue, completed: it.prevCompleted });
+    await upsertLog(it.targetId, it.date, { value: it.prevValue, completed: it.prevCompleted });
   } else {
-    await deleteLog(it.widgetId, it.date);
+    await deleteLog(it.targetId, it.date);
   }
-  if (isStreakType(w.type)) await recomputeMyStreak(it.widgetId, it.date);
+  if (isStreakType(w.type)) await recomputeMyStreak(it.targetId, it.date);
 }
 
 export async function POST(req: Request) {
@@ -122,22 +168,19 @@ export async function POST(req: Request) {
     const pending: PendingItem[] = [];
 
     for (const it of items) {
-      // Apply when confident and in-range; otherwise hold for confirmation.
       if (it.confidence === "high" && !it.reason) {
-        const res = await applyOne(it.widgetId, it.value, date);
+        const res = await applyOne(it.targetId, it.kind, it.value, date);
         if (res) applied.push(res);
       } else {
-        const w = widgets.find((x) => x.id === it.widgetId);
-        if (w) {
-          pending.push({
-            widgetId: w.id,
-            title: w.title,
-            unit: w.unit ?? null,
-            type: w.type,
-            value: it.value,
-            reason: it.reason,
-          });
-        }
+        pending.push({
+          targetId: it.targetId,
+          kind: it.kind,
+          binary: it.binary,
+          title: it.title,
+          unit: it.unit,
+          value: it.value,
+          reason: it.reason,
+        });
       }
     }
 
@@ -149,32 +192,29 @@ export async function POST(req: Request) {
     const raw = Array.isArray(body.items) ? body.items : [];
     const applied: AppliedItem[] = [];
     for (const r of raw as Array<Record<string, unknown>>) {
-      const widgetId = typeof r.widgetId === "string" ? r.widgetId : null;
-      if (!widgetId) continue;
+      const targetId = typeof r.targetId === "string" ? r.targetId : null;
+      if (!targetId) continue;
+      const kind: Kind = r.kind === "body" ? "body" : "widget";
       const value = r.value == null ? null : Number(r.value);
       if (value != null && !Number.isFinite(value)) continue;
       const date = await resolveDate(r.date);
-      const res = await applyOne(widgetId, value, date);
+      const res = await applyOne(targetId, kind, value, date);
       if (res) applied.push(res);
     }
     return NextResponse.json({ ok: true, applied });
   }
 
-  /* ---- undo: restore prior log state for previously applied items ---- */
+  /* ---- undo: restore prior state for previously applied items ---- */
   if (op === "undo") {
     const raw = Array.isArray(body.items) ? body.items : [];
     for (const r of raw as Array<Record<string, unknown>>) {
-      const widgetId = typeof r.widgetId === "string" ? r.widgetId : null;
+      const targetId = typeof r.targetId === "string" ? r.targetId : null;
       const date = typeof r.date === "string" && DATE_RE.test(r.date) ? r.date : null;
-      if (!widgetId || !date) continue;
+      if (!targetId || !date) continue;
       await undoOne({
-        widgetId,
+        targetId,
+        kind: r.kind === "body" ? "body" : "widget",
         date,
-        title: "",
-        unit: null,
-        type: "counter",
-        value: null,
-        completed: false,
         prevValue: r.prevValue == null ? null : Number(r.prevValue),
         prevCompleted: Boolean(r.prevCompleted),
         hadLog: Boolean(r.hadLog),
