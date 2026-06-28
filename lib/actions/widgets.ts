@@ -164,7 +164,7 @@ export async function reorderWidgetsAction(
     await setWidgetPositions(orderedIds);
     await saveLayout({ flow: orderedIds }); // mirror to layouts.layout_json
     revalidatePath("/dashboard");
-    revalidatePath("/dashboard/habits");
+    revalidatePath("/dashboard/trackers");
     revalidatePath("/dashboard/lists");
     return { ok: true };
   } catch {
@@ -182,7 +182,7 @@ export async function resizeWidgetAction(
   const w = await updateWidget(widgetId, { size });
   if (w) {
     revalidatePath("/dashboard");
-    revalidatePath("/dashboard/habits");
+    revalidatePath("/dashboard/trackers");
     revalidatePath("/dashboard/lists");
   }
   return { ok: Boolean(w) };

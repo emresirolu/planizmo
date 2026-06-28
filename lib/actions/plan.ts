@@ -113,7 +113,7 @@ export async function approveWeekPlan(
     await approveWeekPlanRow(weekStart, plan);
 
     revalidatePath("/dashboard");
-    revalidatePath("/dashboard/planner");
+    revalidatePath("/dashboard/calendar");
     return { ok: true, plan };
   } catch {
     return { ok: false, error: "Could not approve the plan" };
