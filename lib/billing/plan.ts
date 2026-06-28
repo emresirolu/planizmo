@@ -47,6 +47,45 @@ export const PRICING = {
   monthly: { amount: "$3", period: "/mo", note: "billed monthly", per: "" },
 } as const;
 
+/* ---------------------------------------------------------------------------
+ * Computed Pro overrides (no DB writes): a launch promo window + owner allow-list.
+ * When the promo date passes, users revert to their real plan automatically.
+ * ------------------------------------------------------------------------- */
+
+/** True while now < PRO_PROMO_UNTIL (ISO date). Unset/invalid/past → false. */
+export function promoActive(now: Date = new Date()): boolean {
+  const until = process.env.PRO_PROMO_UNTIL;
+  if (!until) return false;
+  const t = Date.parse(until);
+  return Number.isFinite(t) && now.getTime() < t;
+}
+
+/** OWNER_EMAILS (comma-separated) are always Pro, even after the promo ends. */
+export function isOwnerEmail(email: string | null | undefined): boolean {
+  if (!email) return false;
+  const list = (process.env.OWNER_EMAILS || "")
+    .split(",")
+    .map((s) => s.trim().toLowerCase())
+    .filter(Boolean);
+  return list.includes(email.toLowerCase());
+}
+
+/** Effective plan = owner OR active promo → pro; otherwise the real plan. */
+export function effectivePlan(rawPlan: Plan, email: string | null | undefined): Plan {
+  if (isOwnerEmail(email)) return "pro";
+  if (promoActive()) return "pro";
+  return rawPlan;
+}
+
+/** Friendly promo end date for UI copy, or null. */
+export function promoUntilLabel(): string | null {
+  const until = process.env.PRO_PROMO_UNTIL;
+  if (!until) return null;
+  const t = Date.parse(until);
+  if (!Number.isFinite(t)) return null;
+  return new Date(t).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric", timeZone: "UTC" });
+}
+
 export function can(plan: Plan, feature: Feature): boolean {
   const p = PLAN_CONFIG[plan];
   switch (feature) {

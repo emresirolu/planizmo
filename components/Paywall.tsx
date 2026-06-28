@@ -30,11 +30,15 @@ const FEATURES = [
 export default function Paywall({
   config,
   userId,
-  currentPlan,
+  realPro,
+  promo,
+  promoUntil,
 }: {
   config: Config;
   userId: string;
-  currentPlan: "free" | "pro";
+  realPro: boolean;
+  promo: boolean;
+  promoUntil: string | null;
 }) {
   const [plan, setPlan] = useState<"annual" | "monthly">("annual");
   const [ready, setReady] = useState(false);
@@ -74,7 +78,7 @@ export default function Paywall({
     }
   }
 
-  if (currentPlan === "pro") {
+  if (realPro) {
     return (
       <div className="rounded-[18px] border p-6" style={{ background: "var(--surface)", borderColor: "var(--border)" }}>
         <div className="text-[15px] font-semibold">You're on Planizmo Pro</div>
@@ -126,6 +130,12 @@ export default function Paywall({
           <div className="text-[13px]" style={{ color: "var(--muted)" }}>The calmest planner, set up by AI — for the price of a coffee.</div>
         </div>
       </div>
+
+      {promo && (
+        <div className="mt-4 rounded-xl px-3.5 py-2.5 text-[13px]" style={{ background: "color-mix(in srgb, var(--accent) 10%, transparent)", color: "var(--accent)" }}>
+          You've got Pro free until {promoUntil ?? "the promo ends"} — pick a plan now to keep it after.
+        </div>
+      )}
 
       <div className="mt-5 flex gap-3">{card("annual")}{card("monthly")}</div>
 
