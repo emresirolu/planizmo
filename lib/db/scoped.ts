@@ -1,22 +1,30 @@
 import "server-only";
-import { and, asc, desc, eq, gte, sql, type SQL } from "drizzle-orm";
+import { and, asc, desc, eq, gte, inArray, lte, sql, type SQL } from "drizzle-orm";
 import { auth } from "@/auth";
 import { db } from "./index";
 import {
   assistantMessages,
+  bodyMetrics,
+  calendarEvents,
   checklistItems,
   checklistLogs,
+  financeCategories,
+  financeSubscriptions,
   goals,
   integrations,
   layouts,
   logs,
   profiles,
+  savingsGoals,
   streaks,
   tasks,
   timeBlocks,
+  transactions,
   users,
   weekPlans,
   widgets,
+  workouts,
+  workoutSets,
 } from "./schema";
 import { isDemoEmail, realProviderAvailable, selectedProviderName } from "@/lib/health/provider";
 import { isOwnerEmail, promoActive, promoUntilLabel, type Plan } from "@/lib/billing/plan";
@@ -368,6 +376,15 @@ export async function upsertLog(
   return row;
 }
 
+/** Remove a (widget, day) log entirely. Used to undo a talk-to-log entry that
+ *  created a brand-new log (no prior state to restore to). */
+export async function deleteLog(widgetId: string, date: string): Promise<void> {
+  const userId = await requireUserId();
+  await db
+    .delete(logs)
+    .where(and(eq(logs.userId, userId), eq(logs.widgetId, widgetId), eq(logs.date, date)));
+}
+
 export async function updateWidget(
   widgetId: string,
   patch: Partial<{
@@ -480,6 +497,7 @@ export function toClientGoal(g: Goal): ClientGoal {
     nextStep: g.nextStep,
     status: g.status,
     targetDate: g.targetDate,
+    linkedWidgetId: g.linkedWidgetId,
     position: g.position,
   };
 }
@@ -537,6 +555,7 @@ export async function updateGoal(
     progressPct: number;
     status: GoalStatus;
     targetDate: string | null;
+    linkedWidgetId: string | null;
   }>,
 ): Promise<Goal | null> {
   const userId = await requireUserId();
@@ -980,4 +999,400 @@ export async function firstTasksWidget(): Promise<Widget | null> {
     .orderBy(asc(widgets.position), asc(widgets.createdAt))
     .limit(1);
   return row ?? null;
+}
+
+/* ---------------------------------------------------------------------------
+ * Gym — body metrics + workouts (Phase 3). All scoped to the session user.
+ * ------------------------------------------------------------------------- */
+
+export type BodyMetric = typeof bodyMetrics.$inferSelect;
+export type Workout = typeof workouts.$inferSelect;
+export type WorkoutSet = typeof workoutSets.$inferSelect;
+
+/** Body metrics from `fromDate` (inclusive), oldest-first — for trend charts. */
+export async function getBodyMetricsSince(fromDate: string): Promise<BodyMetric[]> {
+  const userId = await requireUserId();
+  return db
+    .select()
+    .from(bodyMetrics)
+    .where(and(eq(bodyMetrics.userId, userId), gte(bodyMetrics.date, fromDate)))
+    .orderBy(asc(bodyMetrics.date));
+}
+
+/** A single day's body-metric row, or null. */
+export async function getBodyMetric(date: string): Promise<BodyMetric | null> {
+  const userId = await requireUserId();
+  const [row] = await db
+    .select()
+    .from(bodyMetrics)
+    .where(and(eq(bodyMetrics.userId, userId), eq(bodyMetrics.date, date)))
+    .limit(1);
+  return row ?? null;
+}
+
+/** Most recent body-metric row (any field), or null. */
+export async function latestBodyMetric(): Promise<BodyMetric | null> {
+  const userId = await requireUserId();
+  const [row] = await db
+    .select()
+    .from(bodyMetrics)
+    .where(eq(bodyMetrics.userId, userId))
+    .orderBy(desc(bodyMetrics.date))
+    .limit(1);
+  return row ?? null;
+}
+
+/**
+ * Upsert one day's body metrics. Only the fields present in `patch` are written,
+ * so logging weight never wipes a previously-logged body-fat reading.
+ */
+export async function upsertBodyMetric(
+  date: string,
+  patch: Partial<{ weight: number | null; bodyFatPct: number | null; muscleMass: number | null; notes: string | null }>,
+): Promise<BodyMetric> {
+  const userId = await requireUserId();
+  const set: Record<string, unknown> = {};
+  if (patch.weight !== undefined) set.weight = patch.weight == null ? null : String(patch.weight);
+  if (patch.bodyFatPct !== undefined) set.bodyFatPct = patch.bodyFatPct == null ? null : String(patch.bodyFatPct);
+  if (patch.muscleMass !== undefined) set.muscleMass = patch.muscleMass == null ? null : String(patch.muscleMass);
+  if (patch.notes !== undefined) set.notes = patch.notes;
+
+  const [row] = await db
+    .insert(bodyMetrics)
+    .values({ userId, date, ...(set as object) })
+    .onConflictDoUpdate({ target: [bodyMetrics.userId, bodyMetrics.date], set })
+    .returning();
+  return row;
+}
+
+export async function listRecentWorkouts(limit = 30): Promise<Workout[]> {
+  const userId = await requireUserId();
+  return db
+    .select()
+    .from(workouts)
+    .where(eq(workouts.userId, userId))
+    .orderBy(desc(workouts.date), desc(workouts.createdAt))
+    .limit(limit);
+}
+
+export async function getWorkout(workoutId: string): Promise<Workout | null> {
+  const userId = await requireUserId();
+  const [row] = await db
+    .select()
+    .from(workouts)
+    .where(and(eq(workouts.userId, userId), eq(workouts.id, workoutId)))
+    .limit(1);
+  return row ?? null;
+}
+
+export async function addWorkout(input: {
+  date: string;
+  name: string;
+  durationMin: number | null;
+  notes: string | null;
+}): Promise<Workout> {
+  const userId = await requireUserId();
+  const [row] = await db
+    .insert(workouts)
+    .values({
+      userId,
+      date: input.date,
+      name: input.name,
+      durationMin: input.durationMin,
+      notes: input.notes,
+    })
+    .returning();
+  return row;
+}
+
+export async function deleteWorkout(workoutId: string): Promise<boolean> {
+  const userId = await requireUserId();
+  const deleted = await db
+    .delete(workouts)
+    .where(and(eq(workouts.userId, userId), eq(workouts.id, workoutId)))
+    .returning({ id: workouts.id });
+  return deleted.length > 0;
+}
+
+/** Add a set to a workout the user owns. Returns null if the workout isn't theirs. */
+export async function addWorkoutSet(input: {
+  workoutId: string;
+  exercise: string;
+  sets: number | null;
+  reps: number | null;
+  weight: number | null;
+  position?: number;
+}): Promise<WorkoutSet | null> {
+  const userId = await requireUserId();
+  const owned = await getWorkout(input.workoutId);
+  if (!owned) return null;
+  const [row] = await db
+    .insert(workoutSets)
+    .values({
+      userId,
+      workoutId: input.workoutId,
+      exercise: input.exercise,
+      sets: input.sets,
+      reps: input.reps,
+      weight: input.weight == null ? null : String(input.weight),
+      position: input.position ?? 0,
+    })
+    .returning();
+  return row;
+}
+
+/** All sets belonging to the given workout ids (and the session user). */
+export async function getSetsForWorkoutIds(ids: string[]): Promise<WorkoutSet[]> {
+  if (ids.length === 0) return [];
+  const userId = await requireUserId();
+  return db
+    .select()
+    .from(workoutSets)
+    .where(and(eq(workoutSets.userId, userId), inArray(workoutSets.workoutId, ids)))
+    .orderBy(asc(workoutSets.position), asc(workoutSets.createdAt));
+}
+
+/* ---------------------------------------------------------------------------
+ * Finance (Phase 4) — transactions, categories, subscriptions, savings goals.
+ * ------------------------------------------------------------------------- */
+
+export type Transaction = typeof transactions.$inferSelect;
+export type FinanceCategory = typeof financeCategories.$inferSelect;
+export type FinanceSubscription = typeof financeSubscriptions.$inferSelect;
+export type SavingsGoal = typeof savingsGoals.$inferSelect;
+
+export async function getTransactionsSince(fromDate: string): Promise<Transaction[]> {
+  const userId = await requireUserId();
+  return db
+    .select()
+    .from(transactions)
+    .where(and(eq(transactions.userId, userId), gte(transactions.date, fromDate)))
+    .orderBy(desc(transactions.date), desc(transactions.createdAt));
+}
+
+export async function addTransaction(input: {
+  date: string;
+  amount: number;
+  type: "income" | "expense";
+  category: string | null;
+  note: string | null;
+}): Promise<Transaction> {
+  const userId = await requireUserId();
+  const [row] = await db
+    .insert(transactions)
+    .values({
+      userId,
+      date: input.date,
+      amount: String(input.amount),
+      type: input.type,
+      category: input.category,
+      note: input.note,
+    })
+    .returning();
+  return row;
+}
+
+export async function deleteTransaction(id: string): Promise<boolean> {
+  const userId = await requireUserId();
+  const deleted = await db
+    .delete(transactions)
+    .where(and(eq(transactions.userId, userId), eq(transactions.id, id)))
+    .returning({ id: transactions.id });
+  return deleted.length > 0;
+}
+
+export async function listFinanceCategories(): Promise<FinanceCategory[]> {
+  const userId = await requireUserId();
+  return db
+    .select()
+    .from(financeCategories)
+    .where(eq(financeCategories.userId, userId))
+    .orderBy(asc(financeCategories.name));
+}
+
+export async function addFinanceCategory(name: string): Promise<FinanceCategory> {
+  const userId = await requireUserId();
+  const [row] = await db.insert(financeCategories).values({ userId, name }).returning();
+  return row;
+}
+
+export async function deleteFinanceCategory(id: string): Promise<boolean> {
+  const userId = await requireUserId();
+  const deleted = await db
+    .delete(financeCategories)
+    .where(and(eq(financeCategories.userId, userId), eq(financeCategories.id, id)))
+    .returning({ id: financeCategories.id });
+  return deleted.length > 0;
+}
+
+export async function listFinanceSubscriptions(): Promise<FinanceSubscription[]> {
+  const userId = await requireUserId();
+  return db
+    .select()
+    .from(financeSubscriptions)
+    .where(eq(financeSubscriptions.userId, userId))
+    .orderBy(asc(financeSubscriptions.nextChargeDate), asc(financeSubscriptions.name));
+}
+
+export async function addFinanceSubscription(input: {
+  name: string;
+  amount: number;
+  cadence: "weekly" | "monthly" | "quarterly" | "yearly";
+  nextChargeDate: string | null;
+}): Promise<FinanceSubscription> {
+  const userId = await requireUserId();
+  const [row] = await db
+    .insert(financeSubscriptions)
+    .values({
+      userId,
+      name: input.name,
+      amount: String(input.amount),
+      cadence: input.cadence,
+      nextChargeDate: input.nextChargeDate,
+    })
+    .returning();
+  return row;
+}
+
+export async function deleteFinanceSubscription(id: string): Promise<boolean> {
+  const userId = await requireUserId();
+  const deleted = await db
+    .delete(financeSubscriptions)
+    .where(and(eq(financeSubscriptions.userId, userId), eq(financeSubscriptions.id, id)))
+    .returning({ id: financeSubscriptions.id });
+  return deleted.length > 0;
+}
+
+export async function listSavingsGoals(): Promise<SavingsGoal[]> {
+  const userId = await requireUserId();
+  return db
+    .select()
+    .from(savingsGoals)
+    .where(eq(savingsGoals.userId, userId))
+    .orderBy(asc(savingsGoals.createdAt));
+}
+
+export async function addSavingsGoal(input: {
+  name: string;
+  targetAmount: number;
+  currentAmount: number;
+}): Promise<SavingsGoal> {
+  const userId = await requireUserId();
+  const [row] = await db
+    .insert(savingsGoals)
+    .values({
+      userId,
+      name: input.name,
+      targetAmount: String(input.targetAmount),
+      currentAmount: String(input.currentAmount),
+    })
+    .returning();
+  return row;
+}
+
+export async function updateSavingsGoal(
+  id: string,
+  patch: Partial<{ name: string; targetAmount: number; currentAmount: number }>,
+): Promise<SavingsGoal | null> {
+  const userId = await requireUserId();
+  const set: Record<string, unknown> = {};
+  if (patch.name !== undefined) set.name = patch.name;
+  if (patch.targetAmount !== undefined) set.targetAmount = String(patch.targetAmount);
+  if (patch.currentAmount !== undefined) set.currentAmount = String(patch.currentAmount);
+  const [row] = await db
+    .update(savingsGoals)
+    .set(set)
+    .where(and(eq(savingsGoals.userId, userId), eq(savingsGoals.id, id)))
+    .returning();
+  return row ?? null;
+}
+
+export async function deleteSavingsGoal(id: string): Promise<boolean> {
+  const userId = await requireUserId();
+  const deleted = await db
+    .delete(savingsGoals)
+    .where(and(eq(savingsGoals.userId, userId), eq(savingsGoals.id, id)))
+    .returning({ id: savingsGoals.id });
+  return deleted.length > 0;
+}
+
+/* ---------------------------------------------------------------------------
+ * Calendar (Phase 5) — scheduled events; all scoped to the session user.
+ * ------------------------------------------------------------------------- */
+
+export type CalendarEvent = typeof calendarEvents.$inferSelect;
+
+/** Events whose local day falls within [fromDate, toDate] inclusive. */
+export async function listEventsBetween(fromDate: string, toDate: string): Promise<CalendarEvent[]> {
+  const userId = await requireUserId();
+  return db
+    .select()
+    .from(calendarEvents)
+    .where(and(eq(calendarEvents.userId, userId), gte(calendarEvents.date, fromDate), lte(calendarEvents.date, toDate)))
+    .orderBy(asc(calendarEvents.date), asc(calendarEvents.startTime), asc(calendarEvents.createdAt));
+}
+
+export async function getCalendarEvent(id: string): Promise<CalendarEvent | null> {
+  const userId = await requireUserId();
+  const [row] = await db
+    .select()
+    .from(calendarEvents)
+    .where(and(eq(calendarEvents.userId, userId), eq(calendarEvents.id, id)))
+    .limit(1);
+  return row ?? null;
+}
+
+export async function addCalendarEvent(input: {
+  title: string;
+  date: string;
+  startTime: string | null;
+  endTime: string | null;
+  type: CalendarEvent["type"];
+  source?: CalendarEvent["source"];
+  linkedWidgetId?: string | null;
+}): Promise<CalendarEvent> {
+  const userId = await requireUserId();
+  const [row] = await db
+    .insert(calendarEvents)
+    .values({
+      userId,
+      title: input.title,
+      date: input.date,
+      startTime: input.startTime,
+      endTime: input.endTime,
+      type: input.type,
+      source: input.source ?? "manual",
+      linkedWidgetId: input.linkedWidgetId ?? null,
+    })
+    .returning();
+  return row;
+}
+
+export async function updateCalendarEvent(
+  id: string,
+  patch: Partial<{
+    title: string;
+    date: string;
+    startTime: string | null;
+    endTime: string | null;
+    type: CalendarEvent["type"];
+    completed: boolean;
+  }>,
+): Promise<CalendarEvent | null> {
+  const userId = await requireUserId();
+  const [row] = await db
+    .update(calendarEvents)
+    .set(patch)
+    .where(and(eq(calendarEvents.userId, userId), eq(calendarEvents.id, id)))
+    .returning();
+  return row ?? null;
+}
+
+export async function deleteCalendarEvent(id: string): Promise<boolean> {
+  const userId = await requireUserId();
+  const deleted = await db
+    .delete(calendarEvents)
+    .where(and(eq(calendarEvents.userId, userId), eq(calendarEvents.id, id)))
+    .returning({ id: calendarEvents.id });
+  return deleted.length > 0;
 }

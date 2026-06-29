@@ -67,9 +67,11 @@ export async function updateGoalAction(
     nextStep?: string | null;
     progressPct?: number;
     targetDate?: string | null;
+    linkedWidgetId?: string | null;
   },
 ): Promise<{ ok: boolean }> {
   const clean: Record<string, unknown> = {};
+  if (patch.linkedWidgetId !== undefined) clean.linkedWidgetId = patch.linkedWidgetId || null;
   if (patch.title !== undefined) {
     const t = patch.title.trim();
     if (!t) return { ok: false };

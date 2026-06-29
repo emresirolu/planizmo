@@ -160,8 +160,8 @@ export default function TodayView({ name, greeting, summary, today, widgets, ini
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M12 5v14M5 12h14" /></svg>
               Add widget
             </button>
-            <Link href="/dashboard/planner" className="flex items-center gap-1.5 text-[13.5px] font-medium" style={{ color: "var(--accent)" }}>
-              View full planner
+            <Link href="/dashboard/calendar" className="flex items-center gap-1.5 text-[13.5px] font-medium" style={{ color: "var(--accent)" }}>
+              View calendar
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14M13 6l6 6-6 6" /></svg>
             </Link>
           </div>
@@ -309,7 +309,7 @@ function HabitsPanel({ widgets, streaks, logs, today }: { widgets: ClientWidget[
     <section className="rounded-[18px] border p-[18px]" style={{ background: "var(--surface)", borderColor: "var(--border)" }}>
       <div className="mb-3.5 flex items-center justify-between">
         <span className="text-[14.5px] font-semibold">Habits</span>
-        <Link href="/dashboard/habits" className="text-[12.5px] font-medium" style={{ color: "var(--accent)" }}>Full stats</Link>
+        <Link href="/dashboard/trackers" className="text-[12.5px] font-medium" style={{ color: "var(--accent)" }}>Full stats</Link>
       </div>
       {habitish.length === 0 ? (
         <p className="text-[13px]" style={{ color: "var(--muted)" }}>No habits yet.</p>

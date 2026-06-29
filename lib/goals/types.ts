@@ -9,6 +9,7 @@ export type ClientGoal = {
   nextStep: string | null;
   status: GoalStatus;
   targetDate: string | null; // YYYY-MM-DD
+  linkedWidgetId: string | null;
   position: number;
 };
 

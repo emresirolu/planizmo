@@ -38,7 +38,7 @@ const I = {
       <path d="M12 21s-7-4.4-9.3-9C1.3 9.4 2.4 6 5.6 6c2 0 3.3 1.3 4.4 3M12 21s7-4.4 9.3-9C22.7 9.4 21.6 6 18.4 6c-2 0-3.3 1.3-4.4 3" />
     </svg>
   ),
-  habits: (
+  trackers: (
     <svg width="19" height="19" viewBox="0 0 24 24" {...S}>
       <path d="M9 6h11M9 12h11M9 18h11" />
       <circle cx="4.5" cy="6" r="1.3" />
@@ -46,9 +46,15 @@ const I = {
       <circle cx="4.5" cy="18" r="1.3" />
     </svg>
   ),
-  lists: (
+  gym: (
     <svg width="19" height="19" viewBox="0 0 24 24" {...S}>
-      <path d="M9 6h11M9 12h11M9 18h11M4.5 6h.01M4.5 12h.01M4.5 18h.01" />
+      <path d="M6.5 7v10M3.5 9.5v5M17.5 7v10M20.5 9.5v5M6.5 12h11" />
+    </svg>
+  ),
+  finance: (
+    <svg width="19" height="19" viewBox="0 0 24 24" {...S}>
+      <rect x="3" y="6" width="18" height="13" rx="2.5" />
+      <path d="M3 10.5h18M16.5 14.5h1.5" />
     </svg>
   ),
   ai: (
@@ -60,11 +66,11 @@ const I = {
 
 const ITEMS: NavItem[] = [
   { href: "/dashboard", label: "Today", icon: I.today },
-  { href: "/dashboard/planner", label: "Planner", icon: I.planner },
+  { href: "/dashboard/calendar", label: "Calendar", icon: I.planner },
+  { href: "/dashboard/gym", label: "Gym", icon: I.gym },
+  { href: "/dashboard/finance", label: "Finance", icon: I.finance },
+  { href: "/dashboard/trackers", label: "Trackers", icon: I.trackers },
   { href: "/dashboard/goals", label: "Goals", icon: I.goals },
-  { href: "/dashboard/health", label: "Health", icon: I.health },
-  { href: "/dashboard/habits", label: "Habits", icon: I.habits },
-  { href: "/dashboard/lists", label: "Lists", icon: I.lists },
 ];
 
 function active(pathname: string, href: string): boolean {
@@ -144,15 +150,14 @@ export function SideNav({ name }: { name: string }) {
 
 export function BottomNav() {
   const pathname = usePathname();
-  const items = ITEMS.slice(0, 4); // Today, Planner, Goals, Health
   return (
     <nav className="sticky bottom-0 z-10 flex border-t md:hidden" style={{ background: "var(--surface)", borderColor: "var(--border)" }}>
-      {items.map((it) => {
+      {ITEMS.map((it) => {
         const on = active(pathname, it.href);
         return (
-          <Link key={it.label} href={it.href} className="flex flex-1 flex-col items-center gap-1 py-3" style={{ color: on ? "var(--accent)" : "var(--muted)" }}>
+          <Link key={it.label} href={it.href} className="flex flex-1 flex-col items-center gap-1 py-2.5" style={{ color: on ? "var(--accent)" : "var(--muted)" }}>
             {it.icon}
-            <span className="text-[11px]" style={{ fontWeight: on ? 500 : 400 }}>{it.label}</span>
+            <span className="text-[10px]" style={{ fontWeight: on ? 500 : 400 }}>{it.label}</span>
           </Link>
         );
       })}

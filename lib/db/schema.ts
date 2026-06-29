@@ -109,6 +109,10 @@ export const timeBlockCategoryEnum = pgEnum("time_block_category", [
   "health",
   "planning",
 ]);
+export const transactionTypeEnum = pgEnum("transaction_type", ["income", "expense"]);
+export const cadenceEnum = pgEnum("cadence", ["weekly", "monthly", "quarterly", "yearly"]);
+export const calendarEventTypeEnum = pgEnum("calendar_event_type", ["block", "event", "task", "habit"]);
+export const calendarSourceEnum = pgEnum("calendar_source", ["manual", "ai"]);
 
 /* ============================================================
  * Application tables — every table carries user_id -> users.id
@@ -367,6 +371,149 @@ export const timeBlocks = pgTable("time_blocks", {
   }),
   completed: boolean("completed").notNull().default(false),
   position: integer("position").notNull().default(0),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});
+
+/* ============================================================
+ * Gym (Phase 3) — body metrics over time + workout log
+ * ==========================================================*/
+
+// One row per user per day; columns are independently nullable so the user can
+// log just weight, or weight + body-fat, etc. Upserted on (user_id, date).
+export const bodyMetrics = pgTable(
+  "body_metrics",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    date: date("date").notNull(),
+    weight: numeric("weight"), // in the user's weight unit (kg by default)
+    bodyFatPct: numeric("body_fat_pct"),
+    muscleMass: numeric("muscle_mass"),
+    notes: text("notes"),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [uniqueIndex("body_metrics_user_date_unq").on(t.userId, t.date)],
+);
+
+export const workouts = pgTable("workouts", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  userId: text("user_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  date: date("date").notNull(),
+  name: text("name").notNull(),
+  durationMin: integer("duration_min"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});
+
+export const workoutSets = pgTable("workout_sets", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  userId: text("user_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  workoutId: uuid("workout_id")
+    .notNull()
+    .references(() => workouts.id, { onDelete: "cascade" }),
+  exercise: text("exercise").notNull(),
+  sets: integer("sets"),
+  reps: integer("reps"),
+  weight: numeric("weight"),
+  position: integer("position").notNull().default(0),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});
+
+/* ============================================================
+ * Finance (Phase 4) — leaner first version
+ * ==========================================================*/
+
+export const transactions = pgTable("transactions", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  userId: text("user_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  date: date("date").notNull(),
+  amount: numeric("amount").notNull(), // always positive; direction is `type`
+  type: transactionTypeEnum("type").notNull(),
+  category: text("category"), // free text / matches a finance_categories name
+  note: text("note"),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});
+
+// User-managed list of spending categories (distinct from the widget catalog).
+export const financeCategories = pgTable("finance_categories", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  userId: text("user_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});
+
+// Named distinctly from the Paddle `subscriptions` (billing) table.
+export const financeSubscriptions = pgTable("finance_subscriptions", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  userId: text("user_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  amount: numeric("amount").notNull(),
+  cadence: cadenceEnum("cadence").notNull().default("monthly"),
+  nextChargeDate: date("next_charge_date"),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});
+
+export const savingsGoals = pgTable("savings_goals", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  userId: text("user_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  targetAmount: numeric("target_amount").notNull(),
+  currentAmount: numeric("current_amount").notNull().default("0"),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});
+
+/* ============================================================
+ * Calendar (Phase 5) — scheduled blocks/events/tasks/habits
+ * ==========================================================*/
+
+// `date` is the local day the item belongs to; start/end are times within that
+// day (nullable for all-day items). Grouping by `date` keeps day/week/month
+// views timezone-safe without storing instants.
+export const calendarEvents = pgTable("calendar_events", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  userId: text("user_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  title: text("title").notNull(),
+  date: date("date").notNull(),
+  startTime: time("start_time"),
+  endTime: time("end_time"),
+  type: calendarEventTypeEnum("type").notNull().default("event"),
+  source: calendarSourceEnum("source").notNull().default("manual"),
+  linkedWidgetId: uuid("linked_widget_id").references(() => widgets.id, {
+    onDelete: "set null",
+  }),
+  completed: boolean("completed").notNull().default(false),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),

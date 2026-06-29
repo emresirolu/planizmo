@@ -144,9 +144,9 @@ export default function WeekPlanner({
         <div>
           <h1 className="text-3xl font-medium tracking-tight">Plan your week</h1>
           <div className="mt-1 flex items-center gap-2 text-[13px]" style={{ color: "var(--muted)" }}>
-            <Link href={`/dashboard/planner?week=${prevWeek}`} aria-label="Previous week" className="rounded-md px-1.5 py-0.5" style={{ background: "var(--surface2)" }}>←</Link>
+            <Link href={`/dashboard/calendar?week=${prevWeek}`} aria-label="Previous week" className="rounded-md px-1.5 py-0.5" style={{ background: "var(--surface2)" }}>←</Link>
             <span>{rangeLabel}</span>
-            <Link href={`/dashboard/planner?week=${nextWeek}`} aria-label="Next week" className="rounded-md px-1.5 py-0.5" style={{ background: "var(--surface2)" }}>→</Link>
+            <Link href={`/dashboard/calendar?week=${nextWeek}`} aria-label="Next week" className="rounded-md px-1.5 py-0.5" style={{ background: "var(--surface2)" }}>→</Link>
             {status === "approved" && (
               <span className="rounded-full px-2 py-0.5 text-[11px] font-medium" style={{ background: "color-mix(in srgb, var(--success) 16%, transparent)", color: "var(--success)" }}>
                 approved
