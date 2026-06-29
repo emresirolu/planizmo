@@ -109,6 +109,8 @@ export const timeBlockCategoryEnum = pgEnum("time_block_category", [
   "health",
   "planning",
 ]);
+export const transactionTypeEnum = pgEnum("transaction_type", ["income", "expense"]);
+export const cadenceEnum = pgEnum("cadence", ["weekly", "monthly", "quarterly", "yearly"]);
 
 /* ============================================================
  * Application tables — every table carries user_id -> users.id
@@ -424,6 +426,65 @@ export const workoutSets = pgTable("workout_sets", {
   reps: integer("reps"),
   weight: numeric("weight"),
   position: integer("position").notNull().default(0),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});
+
+/* ============================================================
+ * Finance (Phase 4) — leaner first version
+ * ==========================================================*/
+
+export const transactions = pgTable("transactions", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  userId: text("user_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  date: date("date").notNull(),
+  amount: numeric("amount").notNull(), // always positive; direction is `type`
+  type: transactionTypeEnum("type").notNull(),
+  category: text("category"), // free text / matches a finance_categories name
+  note: text("note"),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});
+
+// User-managed list of spending categories (distinct from the widget catalog).
+export const financeCategories = pgTable("finance_categories", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  userId: text("user_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});
+
+// Named distinctly from the Paddle `subscriptions` (billing) table.
+export const financeSubscriptions = pgTable("finance_subscriptions", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  userId: text("user_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  amount: numeric("amount").notNull(),
+  cadence: cadenceEnum("cadence").notNull().default("monthly"),
+  nextChargeDate: date("next_charge_date"),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});
+
+export const savingsGoals = pgTable("savings_goals", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  userId: text("user_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  targetAmount: numeric("target_amount").notNull(),
+  currentAmount: numeric("current_amount").notNull().default("0"),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),

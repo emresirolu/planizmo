@@ -7,14 +7,18 @@ import {
   bodyMetrics,
   checklistItems,
   checklistLogs,
+  financeCategories,
+  financeSubscriptions,
   goals,
   integrations,
   layouts,
   logs,
   profiles,
+  savingsGoals,
   streaks,
   tasks,
   timeBlocks,
+  transactions,
   users,
   weekPlans,
   widgets,
@@ -1143,4 +1147,168 @@ export async function getSetsForWorkoutIds(ids: string[]): Promise<WorkoutSet[]>
     .from(workoutSets)
     .where(and(eq(workoutSets.userId, userId), inArray(workoutSets.workoutId, ids)))
     .orderBy(asc(workoutSets.position), asc(workoutSets.createdAt));
+}
+
+/* ---------------------------------------------------------------------------
+ * Finance (Phase 4) — transactions, categories, subscriptions, savings goals.
+ * ------------------------------------------------------------------------- */
+
+export type Transaction = typeof transactions.$inferSelect;
+export type FinanceCategory = typeof financeCategories.$inferSelect;
+export type FinanceSubscription = typeof financeSubscriptions.$inferSelect;
+export type SavingsGoal = typeof savingsGoals.$inferSelect;
+
+export async function getTransactionsSince(fromDate: string): Promise<Transaction[]> {
+  const userId = await requireUserId();
+  return db
+    .select()
+    .from(transactions)
+    .where(and(eq(transactions.userId, userId), gte(transactions.date, fromDate)))
+    .orderBy(desc(transactions.date), desc(transactions.createdAt));
+}
+
+export async function addTransaction(input: {
+  date: string;
+  amount: number;
+  type: "income" | "expense";
+  category: string | null;
+  note: string | null;
+}): Promise<Transaction> {
+  const userId = await requireUserId();
+  const [row] = await db
+    .insert(transactions)
+    .values({
+      userId,
+      date: input.date,
+      amount: String(input.amount),
+      type: input.type,
+      category: input.category,
+      note: input.note,
+    })
+    .returning();
+  return row;
+}
+
+export async function deleteTransaction(id: string): Promise<boolean> {
+  const userId = await requireUserId();
+  const deleted = await db
+    .delete(transactions)
+    .where(and(eq(transactions.userId, userId), eq(transactions.id, id)))
+    .returning({ id: transactions.id });
+  return deleted.length > 0;
+}
+
+export async function listFinanceCategories(): Promise<FinanceCategory[]> {
+  const userId = await requireUserId();
+  return db
+    .select()
+    .from(financeCategories)
+    .where(eq(financeCategories.userId, userId))
+    .orderBy(asc(financeCategories.name));
+}
+
+export async function addFinanceCategory(name: string): Promise<FinanceCategory> {
+  const userId = await requireUserId();
+  const [row] = await db.insert(financeCategories).values({ userId, name }).returning();
+  return row;
+}
+
+export async function deleteFinanceCategory(id: string): Promise<boolean> {
+  const userId = await requireUserId();
+  const deleted = await db
+    .delete(financeCategories)
+    .where(and(eq(financeCategories.userId, userId), eq(financeCategories.id, id)))
+    .returning({ id: financeCategories.id });
+  return deleted.length > 0;
+}
+
+export async function listFinanceSubscriptions(): Promise<FinanceSubscription[]> {
+  const userId = await requireUserId();
+  return db
+    .select()
+    .from(financeSubscriptions)
+    .where(eq(financeSubscriptions.userId, userId))
+    .orderBy(asc(financeSubscriptions.nextChargeDate), asc(financeSubscriptions.name));
+}
+
+export async function addFinanceSubscription(input: {
+  name: string;
+  amount: number;
+  cadence: "weekly" | "monthly" | "quarterly" | "yearly";
+  nextChargeDate: string | null;
+}): Promise<FinanceSubscription> {
+  const userId = await requireUserId();
+  const [row] = await db
+    .insert(financeSubscriptions)
+    .values({
+      userId,
+      name: input.name,
+      amount: String(input.amount),
+      cadence: input.cadence,
+      nextChargeDate: input.nextChargeDate,
+    })
+    .returning();
+  return row;
+}
+
+export async function deleteFinanceSubscription(id: string): Promise<boolean> {
+  const userId = await requireUserId();
+  const deleted = await db
+    .delete(financeSubscriptions)
+    .where(and(eq(financeSubscriptions.userId, userId), eq(financeSubscriptions.id, id)))
+    .returning({ id: financeSubscriptions.id });
+  return deleted.length > 0;
+}
+
+export async function listSavingsGoals(): Promise<SavingsGoal[]> {
+  const userId = await requireUserId();
+  return db
+    .select()
+    .from(savingsGoals)
+    .where(eq(savingsGoals.userId, userId))
+    .orderBy(asc(savingsGoals.createdAt));
+}
+
+export async function addSavingsGoal(input: {
+  name: string;
+  targetAmount: number;
+  currentAmount: number;
+}): Promise<SavingsGoal> {
+  const userId = await requireUserId();
+  const [row] = await db
+    .insert(savingsGoals)
+    .values({
+      userId,
+      name: input.name,
+      targetAmount: String(input.targetAmount),
+      currentAmount: String(input.currentAmount),
+    })
+    .returning();
+  return row;
+}
+
+export async function updateSavingsGoal(
+  id: string,
+  patch: Partial<{ name: string; targetAmount: number; currentAmount: number }>,
+): Promise<SavingsGoal | null> {
+  const userId = await requireUserId();
+  const set: Record<string, unknown> = {};
+  if (patch.name !== undefined) set.name = patch.name;
+  if (patch.targetAmount !== undefined) set.targetAmount = String(patch.targetAmount);
+  if (patch.currentAmount !== undefined) set.currentAmount = String(patch.currentAmount);
+  const [row] = await db
+    .update(savingsGoals)
+    .set(set)
+    .where(and(eq(savingsGoals.userId, userId), eq(savingsGoals.id, id)))
+    .returning();
+  return row ?? null;
+}
+
+export async function deleteSavingsGoal(id: string): Promise<boolean> {
+  const userId = await requireUserId();
+  const deleted = await db
+    .delete(savingsGoals)
+    .where(and(eq(savingsGoals.userId, userId), eq(savingsGoals.id, id)))
+    .returning({ id: savingsGoals.id });
+  return deleted.length > 0;
 }

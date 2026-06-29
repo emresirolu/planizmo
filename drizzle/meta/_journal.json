@@ -50,6 +50,13 @@
       "when": 1782690314182,
       "tag": "0006_cuddly_gamora",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1782691033881,
+      "tag": "0007_nebulous_firedrake",
+      "breakpoints": true
     }
   ]
 }
