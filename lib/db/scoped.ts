@@ -497,6 +497,7 @@ export function toClientGoal(g: Goal): ClientGoal {
     nextStep: g.nextStep,
     status: g.status,
     targetDate: g.targetDate,
+    linkedWidgetId: g.linkedWidgetId,
     position: g.position,
   };
 }
@@ -554,6 +555,7 @@ export async function updateGoal(
     progressPct: number;
     status: GoalStatus;
     targetDate: string | null;
+    linkedWidgetId: string | null;
   }>,
 ): Promise<Goal | null> {
   const userId = await requireUserId();

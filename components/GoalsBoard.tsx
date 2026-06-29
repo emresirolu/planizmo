@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 import WidgetIcon from "./WidgetIcon";
+import TrendChart, { type TrendPoint } from "./TrendChart";
 import { GOAL_ICONS, type ClientGoal, type GoalStatus } from "@/lib/goals/types";
 import {
   addGoalAction,
@@ -13,7 +14,17 @@ import {
 
 const inputStyle = { background: "var(--surface2)", borderColor: "var(--border)", color: "var(--text)" } as const;
 
-export default function GoalsBoard({ initial }: { initial: ClientGoal[] }) {
+type LinkWidget = { id: string; title: string };
+
+export default function GoalsBoard({
+  initial,
+  widgets = [],
+  linkedSeries = {},
+}: {
+  initial: ClientGoal[];
+  widgets?: LinkWidget[];
+  linkedSeries?: Record<string, TrendPoint[]>;
+}) {
   const [goals, setGoals] = useState<ClientGoal[]>(initial);
   const [adding, setAdding] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -149,9 +160,88 @@ export default function GoalsBoard({ initial }: { initial: ClientGoal[] }) {
                   <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M18 6 6 18M6 6l12 12" /></svg>
                 </button>
               </div>
+
+              <GoalExtras
+                goal={g}
+                widgets={widgets}
+                series={g.linkedWidgetId ? linkedSeries[g.linkedWidgetId] ?? [] : []}
+                onLink={(wid) => saveField(g.id, { linkedWidgetId: wid })}
+                onSetNextStep={(step) => saveField(g.id, { nextStep: step })}
+              />
             </div>
           ))}
         </div>
+      )}
+    </div>
+  );
+}
+
+function GoalExtras({
+  goal,
+  widgets,
+  series,
+  onLink,
+  onSetNextStep,
+}: {
+  goal: ClientGoal;
+  widgets: LinkWidget[];
+  series: TrendPoint[];
+  onLink: (widgetId: string | null) => void;
+  onSetNextStep: (step: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [steps, setSteps] = useState<string[] | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  async function breakdown() {
+    setLoading(true);
+    try {
+      const res = await fetch("/api/goals/breakdown", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ goalId: goal.id }),
+      });
+      const d = await res.json().catch(() => ({}));
+      if (d.ok && Array.isArray(d.steps)) { setSteps(d.steps); setOpen(true); }
+    } catch { /* ignore */ }
+    finally { setLoading(false); }
+  }
+
+  return (
+    <div className="mt-3 border-t pt-3" style={{ borderColor: "var(--border)" }}>
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="text-[12px]" style={{ color: "var(--muted)" }}>Linked tracker</span>
+        <select
+          value={goal.linkedWidgetId ?? ""}
+          onChange={(e) => onLink(e.target.value || null)}
+          className="rounded-lg border px-2 py-1 text-[12.5px] outline-none"
+          style={{ background: "var(--surface2)", borderColor: "var(--border)", color: "var(--text)" }}
+        >
+          <option value="">none</option>
+          {widgets.map((w) => <option key={w.id} value={w.id}>{w.title}</option>)}
+        </select>
+        <div className="flex-1" />
+        <button type="button" onClick={breakdown} disabled={loading} className="rounded-full px-3 py-1.5 text-[12.5px] font-medium disabled:opacity-60" style={{ background: "color-mix(in srgb, var(--accent) 13%, transparent)", color: "var(--accent)", cursor: "pointer" }}>
+          {loading ? "Thinking…" : steps ? "Re-break down" : "Break it down with AI"}
+        </button>
+      </div>
+
+      {goal.linkedWidgetId && series.length > 0 && (
+        <div className="mt-3">
+          <TrendChart data={series} label="Weekly completion" unit="%" direction="up" height={140} />
+        </div>
+      )}
+
+      {open && steps && (
+        <ol className="mt-3 flex flex-col gap-1.5">
+          {steps.map((s, i) => (
+            <li key={i} className="flex items-start gap-2 text-[13px]">
+              <span className="mt-0.5 flex h-4 w-4 flex-none items-center justify-center rounded-full text-[10px] font-semibold" style={{ background: "color-mix(in srgb, var(--accent) 14%, transparent)", color: "var(--accent)" }}>{i + 1}</span>
+              <span className="flex-1">{s}</span>
+              <button type="button" onClick={() => onSetNextStep(s)} className="flex-none text-[11px]" style={{ color: "var(--accent)", cursor: "pointer" }}>set as next</button>
+            </li>
+          ))}
+        </ol>
       )}
     </div>
   );

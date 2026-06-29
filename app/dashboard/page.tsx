@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import TodayView from "@/components/TodayView";
+import InsightsCard from "@/components/InsightsCard";
 import { getHealthSummary, getMyPlan, getMyProfile, getMyViewMode, listGoals, listTimeBlocks, toClientGoal } from "@/lib/db/scoped";
 import { loadDashboard } from "@/lib/widgets/dashboard-data";
 import { isScheduledToday } from "@/lib/widgets/logic";
@@ -55,21 +56,26 @@ export default async function DashboardPage() {
       : `You've got ${scheduled} thing${scheduled === 1 ? "" : "s"} on today${done > 0 ? `, ${done} already done` : ""}. Tap an item to log it, or ask the assistant to lay out your day.`;
 
   return (
-    <TodayView
-      name={name}
-      greeting={greeting}
-      summary={summary}
-      today={data.today}
-      widgets={data.widgets}
-      initialLogs={data.logs}
-      streaks={data.streaks}
-      checklists={data.checklists}
-      tasks={tasks}
-      initialViewMode={viewMode}
-      timeBlocks={timeBlocks}
-      health={health}
-      goals={goals}
-      plan={plan}
-    />
+    <>
+      <div className="mx-auto mb-5 w-full max-w-5xl">
+        <InsightsCard />
+      </div>
+      <TodayView
+        name={name}
+        greeting={greeting}
+        summary={summary}
+        today={data.today}
+        widgets={data.widgets}
+        initialLogs={data.logs}
+        streaks={data.streaks}
+        checklists={data.checklists}
+        tasks={tasks}
+        initialViewMode={viewMode}
+        timeBlocks={timeBlocks}
+        health={health}
+        goals={goals}
+        plan={plan}
+      />
+    </>
   );
 }
