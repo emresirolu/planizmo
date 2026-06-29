@@ -1,10 +1,11 @@
 import "server-only";
-import { and, asc, desc, eq, gte, inArray, sql, type SQL } from "drizzle-orm";
+import { and, asc, desc, eq, gte, inArray, lte, sql, type SQL } from "drizzle-orm";
 import { auth } from "@/auth";
 import { db } from "./index";
 import {
   assistantMessages,
   bodyMetrics,
+  calendarEvents,
   checklistItems,
   checklistLogs,
   financeCategories,
@@ -1310,5 +1311,86 @@ export async function deleteSavingsGoal(id: string): Promise<boolean> {
     .delete(savingsGoals)
     .where(and(eq(savingsGoals.userId, userId), eq(savingsGoals.id, id)))
     .returning({ id: savingsGoals.id });
+  return deleted.length > 0;
+}
+
+/* ---------------------------------------------------------------------------
+ * Calendar (Phase 5) — scheduled events; all scoped to the session user.
+ * ------------------------------------------------------------------------- */
+
+export type CalendarEvent = typeof calendarEvents.$inferSelect;
+
+/** Events whose local day falls within [fromDate, toDate] inclusive. */
+export async function listEventsBetween(fromDate: string, toDate: string): Promise<CalendarEvent[]> {
+  const userId = await requireUserId();
+  return db
+    .select()
+    .from(calendarEvents)
+    .where(and(eq(calendarEvents.userId, userId), gte(calendarEvents.date, fromDate), lte(calendarEvents.date, toDate)))
+    .orderBy(asc(calendarEvents.date), asc(calendarEvents.startTime), asc(calendarEvents.createdAt));
+}
+
+export async function getCalendarEvent(id: string): Promise<CalendarEvent | null> {
+  const userId = await requireUserId();
+  const [row] = await db
+    .select()
+    .from(calendarEvents)
+    .where(and(eq(calendarEvents.userId, userId), eq(calendarEvents.id, id)))
+    .limit(1);
+  return row ?? null;
+}
+
+export async function addCalendarEvent(input: {
+  title: string;
+  date: string;
+  startTime: string | null;
+  endTime: string | null;
+  type: CalendarEvent["type"];
+  source?: CalendarEvent["source"];
+  linkedWidgetId?: string | null;
+}): Promise<CalendarEvent> {
+  const userId = await requireUserId();
+  const [row] = await db
+    .insert(calendarEvents)
+    .values({
+      userId,
+      title: input.title,
+      date: input.date,
+      startTime: input.startTime,
+      endTime: input.endTime,
+      type: input.type,
+      source: input.source ?? "manual",
+      linkedWidgetId: input.linkedWidgetId ?? null,
+    })
+    .returning();
+  return row;
+}
+
+export async function updateCalendarEvent(
+  id: string,
+  patch: Partial<{
+    title: string;
+    date: string;
+    startTime: string | null;
+    endTime: string | null;
+    type: CalendarEvent["type"];
+    completed: boolean;
+  }>,
+): Promise<CalendarEvent | null> {
+  const userId = await requireUserId();
+  const [row] = await db
+    .update(calendarEvents)
+    .set(patch)
+    .where(and(eq(calendarEvents.userId, userId), eq(calendarEvents.id, id)))
+    .returning();
+  return row ?? null;
+}
+
+export async function deleteCalendarEvent(id: string): Promise<boolean> {
+  const userId = await requireUserId();
+  const deleted = await db
+    .delete(calendarEvents)
+    .where(and(eq(calendarEvents.userId, userId), eq(calendarEvents.id, id)))
+    .returning({ id: calendarEvents.id });
   return deleted.length > 0;
 }

@@ -111,6 +111,8 @@ export const timeBlockCategoryEnum = pgEnum("time_block_category", [
 ]);
 export const transactionTypeEnum = pgEnum("transaction_type", ["income", "expense"]);
 export const cadenceEnum = pgEnum("cadence", ["weekly", "monthly", "quarterly", "yearly"]);
+export const calendarEventTypeEnum = pgEnum("calendar_event_type", ["block", "event", "task", "habit"]);
+export const calendarSourceEnum = pgEnum("calendar_source", ["manual", "ai"]);
 
 /* ============================================================
  * Application tables — every table carries user_id -> users.id
@@ -485,6 +487,33 @@ export const savingsGoals = pgTable("savings_goals", {
   name: text("name").notNull(),
   targetAmount: numeric("target_amount").notNull(),
   currentAmount: numeric("current_amount").notNull().default("0"),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});
+
+/* ============================================================
+ * Calendar (Phase 5) — scheduled blocks/events/tasks/habits
+ * ==========================================================*/
+
+// `date` is the local day the item belongs to; start/end are times within that
+// day (nullable for all-day items). Grouping by `date` keeps day/week/month
+// views timezone-safe without storing instants.
+export const calendarEvents = pgTable("calendar_events", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  userId: text("user_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  title: text("title").notNull(),
+  date: date("date").notNull(),
+  startTime: time("start_time"),
+  endTime: time("end_time"),
+  type: calendarEventTypeEnum("type").notNull().default("event"),
+  source: calendarSourceEnum("source").notNull().default("manual"),
+  linkedWidgetId: uuid("linked_widget_id").references(() => widgets.id, {
+    onDelete: "set null",
+  }),
+  completed: boolean("completed").notNull().default(false),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),

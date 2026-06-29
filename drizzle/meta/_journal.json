@@ -57,6 +57,13 @@
       "when": 1782691033881,
       "tag": "0007_nebulous_firedrake",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1782691439920,
+      "tag": "0008_legal_blade",
+      "breakpoints": true
     }
   ]
 }
