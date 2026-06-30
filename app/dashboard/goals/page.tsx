@@ -49,5 +49,9 @@ export default async function GoalsPage() {
     }
   }
 
-  return <GoalsBoard initial={goals} widgets={widgets} linkedSeries={linkedSeries} />;
+  return (
+    <div className="px-6 py-7 md:px-8">
+      <GoalsBoard initial={goals} widgets={widgets} linkedSeries={linkedSeries} />
+    </div>
+  );
 }
