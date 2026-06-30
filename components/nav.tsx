@@ -68,7 +68,6 @@ const ITEMS: NavItem[] = [
   { href: "/dashboard", label: "Today", icon: I.today },
   { href: "/dashboard/calendar", label: "Calendar", icon: I.planner },
   { href: "/dashboard/gym", label: "Gym", icon: I.gym },
-  { href: "/dashboard/finance", label: "Finance", icon: I.finance },
   { href: "/dashboard/trackers", label: "Trackers", icon: I.trackers },
   { href: "/dashboard/goals", label: "Goals", icon: I.goals },
 ];
