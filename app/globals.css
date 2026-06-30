@@ -128,3 +128,31 @@ body {
   width: 0;
   height: 0;
 }
+
+/* ============================================================
+ * Editorial daybook design system (Planizmo final UI).
+ * Scoped to .pz-paper so it can be adopted page-by-page without
+ * disturbing the legacy data-theme system during the migration.
+ * ==========================================================*/
+.pz-paper {
+  --canvas: #e7decb;
+  --paper: #f4eee3;
+  --surface: #fbf7ee;
+  --surface2: #efe7d5;
+  --ink: #2b2a26;
+  --muted: #857b69;
+  --faint: #a89c84;
+  --border: #ded2bd;
+  --rule: #cec2a9;
+  --accent: #4e6b53;
+  --serif: var(--font-serif), Georgia, serif;
+  --mono: var(--font-mono), ui-monospace, monospace;
+  --hand: var(--font-hand), cursive;
+  font-family: var(--font-inter), system-ui, sans-serif;
+  color: var(--ink);
+}
+@media (max-width: 760px) {
+  .pz-hero { flex-direction: column !important; }
+  .pz-nav-links { display: none !important; }
+  .pz-h1 { font-size: 42px !important; }
+}
