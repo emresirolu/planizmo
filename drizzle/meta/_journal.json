@@ -64,6 +64,13 @@
       "when": 1782691439920,
       "tag": "0008_legal_blade",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1782794913125,
+      "tag": "0009_tense_meteorite",
+      "breakpoints": true
     }
   ]
 }

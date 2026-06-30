@@ -112,6 +112,18 @@ export async function getMyTimezone(): Promise<string> {
   return profile?.timezone || "UTC";
 }
 
+/** Mark onboarding complete and store the captured energy/coaching preferences. */
+export async function completeOnboarding(
+  energyPattern: string | null,
+  coachingStyle: string | null,
+): Promise<void> {
+  const userId = await requireUserId();
+  await db
+    .update(profiles)
+    .set({ onboardedAt: new Date(), energyPattern, coachingStyle })
+    .where(eq(profiles.userId, userId));
+}
+
 export async function getMyEmail(): Promise<string | null> {
   const userId = await requireUserId();
   const [row] = await db.select({ email: users.email }).from(users).where(eq(users.id, userId)).limit(1);

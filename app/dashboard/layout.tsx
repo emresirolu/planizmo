@@ -4,7 +4,7 @@ import Sidebar from "@/components/daybook/Sidebar";
 import Header from "@/components/daybook/Header";
 import MobileNav from "@/components/daybook/MobileNav";
 import QuickCapture from "@/components/daybook/QuickCapture";
-import { getMyProfile } from "@/lib/db/scoped";
+import { getMyProfile, listMyWidgets } from "@/lib/db/scoped";
 
 export default async function DashboardLayout({
   children,
@@ -15,6 +15,11 @@ export default async function DashboardLayout({
   if (!session?.user) redirect("/signin");
 
   const profile = await getMyProfile();
+  // New users (not onboarded, no data yet) go through "Make this daybook yours".
+  if (!profile?.onboardedAt) {
+    const widgets = await listMyWidgets();
+    if (widgets.length === 0) redirect("/onboarding");
+  }
   const name =
     profile?.displayName?.split(" ")[0] ??
     session.user.name?.split(" ")[0] ??
