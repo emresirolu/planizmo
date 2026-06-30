@@ -62,11 +62,13 @@ export default function Sidebar({ name }: { name: string }) {
       </button>
 
       <div className="flex items-center gap-[10px] rounded-[9px] p-[9px]" style={{ border: "1px solid var(--border)", background: "var(--surface)" }}>
-        <span className="flex h-7 w-7 flex-none items-center justify-center rounded-[7px] text-[12px] font-semibold" style={{ background: "var(--accent)", color: "#F6F1E6" }}>{name.charAt(0).toUpperCase()}</span>
-        <div className="min-w-0 flex-1">
-          <div className="truncate text-[13px] font-semibold" style={{ letterSpacing: "-.01em" }}>{name}</div>
-          <div style={{ fontFamily: "var(--mono)", fontSize: 9.5, color: "var(--faint)", letterSpacing: ".04em" }}>DAYBOOK</div>
-        </div>
+        <Link href="/dashboard/settings" className="flex min-w-0 flex-1 items-center gap-[10px]" style={{ textDecoration: "none", color: "var(--ink)" }}>
+          <span className="flex h-7 w-7 flex-none items-center justify-center rounded-[7px] text-[12px] font-semibold" style={{ background: "var(--accent)", color: "#F6F1E6" }}>{name.charAt(0).toUpperCase()}</span>
+          <div className="min-w-0 flex-1">
+            <div className="truncate text-[13px] font-semibold" style={{ letterSpacing: "-.01em" }}>{name}</div>
+            <div style={{ fontFamily: "var(--mono)", fontSize: 9.5, color: "var(--faint)", letterSpacing: ".04em" }}>SETTINGS</div>
+          </div>
+        </Link>
         <form action={signOutAction}>
           <button type="submit" aria-label="Sign out" style={{ color: "var(--faint)", cursor: "pointer", display: "flex" }}>
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round"><path d="M15 4h3a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1h-3M10 17l5-5-5-5M15 12H3" /></svg>

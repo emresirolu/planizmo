@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { auth, signIn } from "@/auth";
 import GoogleButton from "@/components/daybook/GoogleButton";
@@ -95,7 +96,13 @@ export default async function SignInPage({
             <p className="mt-3 text-center text-[12.5px]" style={{ color: "var(--muted)" }}>No credit card. Build your daybook in two minutes.</p>
           </div>
 
-          <p className="text-center text-[12px]" style={{ color: "var(--faint)" }}>By continuing, you agree to use Planizmo responsibly.</p>
+          <div className="text-center">
+            <p className="text-[12px]" style={{ color: "var(--faint)" }}>By continuing, you agree to use Planizmo responsibly.</p>
+            <div className="mt-2 flex justify-center gap-4 text-[12px]">
+              <Link href="/privacy" style={{ color: "var(--muted)" }}>Privacy</Link>
+              <Link href="/terms" style={{ color: "var(--muted)" }}>Terms</Link>
+            </div>
+          </div>
         </div>
       </div>
     </main>

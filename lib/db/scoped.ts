@@ -1408,3 +1408,90 @@ export async function deleteCalendarEvent(id: string): Promise<boolean> {
     .returning({ id: calendarEvents.id });
   return deleted.length > 0;
 }
+
+/* ---------------------------------------------------------------------------
+ * Account & privacy — export, reset, delete. All scoped to the session user;
+ * a user can only ever touch their own rows.
+ * ------------------------------------------------------------------------- */
+
+/** Everything the signed-in user owns, as a plain JSON-able object. Excludes
+ *  auth secrets (OAuth tokens, session tokens). */
+export async function exportMyData(): Promise<Record<string, unknown>> {
+  const userId = await requireUserId();
+
+  const [account] = await db
+    .select({ id: users.id, name: users.name, email: users.email })
+    .from(users)
+    .where(eq(users.id, userId));
+  const profile = await getMyProfile();
+
+  const [
+    goalRows, widgetRows, logRows, streakRows, taskRows, clItems, clLogs,
+    timeBlockRows, eventRows, weekPlanRows, bodyRows, workoutRows, setRows, msgRows,
+  ] = await Promise.all([
+    db.select().from(goals).where(eq(goals.userId, userId)),
+    db.select().from(widgets).where(eq(widgets.userId, userId)),
+    db.select().from(logs).where(eq(logs.userId, userId)),
+    db.select().from(streaks).where(eq(streaks.userId, userId)),
+    db.select().from(tasks).where(eq(tasks.userId, userId)),
+    db.select().from(checklistItems).where(eq(checklistItems.userId, userId)),
+    db.select().from(checklistLogs).where(eq(checklistLogs.userId, userId)),
+    db.select().from(timeBlocks).where(eq(timeBlocks.userId, userId)),
+    db.select().from(calendarEvents).where(eq(calendarEvents.userId, userId)),
+    db.select().from(weekPlans).where(eq(weekPlans.userId, userId)),
+    db.select().from(bodyMetrics).where(eq(bodyMetrics.userId, userId)),
+    db.select().from(workouts).where(eq(workouts.userId, userId)),
+    db.select().from(workoutSets).where(eq(workoutSets.userId, userId)),
+    db.select().from(assistantMessages).where(eq(assistantMessages.userId, userId)),
+  ]);
+
+  return {
+    schema: "planizmo.export.v1",
+    account,
+    profile,
+    onboarding: profile ? { onboardedAt: profile.onboardedAt, energyPattern: profile.energyPattern, coachingStyle: profile.coachingStyle } : null,
+    goals: goalRows,
+    trackers: widgetRows,
+    logs: logRows,
+    streaks: streakRows,
+    tasks: taskRows,
+    checklistItems: clItems,
+    checklistLogs: clLogs,
+    timeBlocks: timeBlockRows,
+    calendarEvents: eventRows,
+    weekPlans: weekPlanRows,
+    bodyMetrics: bodyRows,
+    workouts: workoutRows,
+    workoutSets: setRows,
+    aiHistory: msgRows,
+  };
+}
+
+/** Clear the generated daybook (keep the account); reset onboarding state. */
+export async function resetMyDaybook(): Promise<void> {
+  const userId = await requireUserId();
+  // Children cascade from widgets (logs, streaks, checklist*, widget-linked tasks)
+  // and from workouts (workout_sets); we also clear standalone rows explicitly.
+  await db.delete(goals).where(eq(goals.userId, userId));
+  await db.delete(widgets).where(eq(widgets.userId, userId));
+  await db.delete(tasks).where(eq(tasks.userId, userId));
+  await db.delete(timeBlocks).where(eq(timeBlocks.userId, userId));
+  await db.delete(calendarEvents).where(eq(calendarEvents.userId, userId));
+  await db.delete(weekPlans).where(eq(weekPlans.userId, userId));
+  await db.delete(bodyMetrics).where(eq(bodyMetrics.userId, userId));
+  await db.delete(workouts).where(eq(workouts.userId, userId));
+  await db.delete(assistantMessages).where(eq(assistantMessages.userId, userId));
+  await db.delete(layouts).where(eq(layouts.userId, userId));
+  await db.delete(transactions).where(eq(transactions.userId, userId));
+  await db.delete(financeCategories).where(eq(financeCategories.userId, userId));
+  await db.delete(financeSubscriptions).where(eq(financeSubscriptions.userId, userId));
+  await db.delete(savingsGoals).where(eq(savingsGoals.userId, userId));
+  await db.update(profiles).set({ onboardedAt: null, energyPattern: null, coachingStyle: null }).where(eq(profiles.userId, userId));
+}
+
+/** Permanently delete the account. Deleting the users row cascades to every
+ *  user-owned table (and auth accounts/sessions) via onDelete: "cascade". */
+export async function deleteMyAccount(): Promise<void> {
+  const userId = await requireUserId();
+  await db.delete(users).where(eq(users.id, userId));
+}
