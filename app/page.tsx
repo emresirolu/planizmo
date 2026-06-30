@@ -158,6 +158,7 @@ const HTML = `
   <!-- FOOTER -->
   <div style="max-width:1120px;margin:0 auto;padding:26px 28px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px">
     <div style="display:flex;align-items:center;gap:9px"><div style="width:22px;height:22px;border-radius:6px;background:var(--accent);color:#F6F1E6;display:flex;align-items:center;justify-content:center"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M3 5.4c3-1.1 6-1.1 9 0v13.2c-3-1.1-6-1.1-9 0zM21 5.4c-3-1.1-6-1.1-9 0v13.2c3-1.1 6-1.1 9 0z"/></svg></div><span style="font-family:var(--serif);font-size:16px">planizmo</span></div>
+    <div style="display:flex;gap:18px;font-size:13px"><a href="/privacy" style="color:var(--muted);text-decoration:none">Privacy</a><a href="/terms" style="color:var(--muted);text-decoration:none">Terms</a><a href="mailto:emrecanoyunlar@gmail.com" style="color:var(--muted);text-decoration:none">Contact</a></div>
     <div style="font-family:var(--mono);font-size:10.5px;color:var(--faint);letter-spacing:.06em">A PREMIUM DIGITAL DAYBOOK · © 2024</div>
   </div>
 </div>

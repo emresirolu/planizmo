@@ -1,92 +1,50 @@
-import ThemeControls from "@/components/ThemeControls";
-import ViewModeControl from "@/components/ViewModeControl";
-import { SignOutButton } from "@/components/nav";
 import Link from "next/link";
-import { getMyPlan, getMyProfile, getMyViewMode } from "@/lib/db/scoped";
-import { DEFAULT_ACCENT, DEFAULT_THEME } from "@/lib/theme/themes";
+import { SignOutButton } from "@/components/nav";
+import AccountPrivacy from "@/components/daybook/AccountPrivacy";
+import { getMyEmail, getMyProfile } from "@/lib/db/scoped";
 
 export default async function SettingsPage() {
   const profile = await getMyProfile();
-  const theme = profile?.theme ?? DEFAULT_THEME;
-  const accent = profile?.accentColor ?? DEFAULT_ACCENT;
-  const viewMode = await getMyViewMode();
-  const plan = await getMyPlan();
+  const email = await getMyEmail();
+  const name = profile?.displayName ?? "—";
+
+  const sectionLabel = { fontFamily: "var(--mono)", fontSize: 10, letterSpacing: ".16em", color: "var(--faint)" } as const;
 
   return (
-    <div className="flex flex-col">
-      <h1 className="px-1 pb-4 pt-2 text-3xl font-medium tracking-tight">
-        Settings
-      </h1>
+    <div className="mx-auto max-w-2xl px-6 py-7 md:px-8">
+      <h1 className="text-[28px] font-medium tracking-tight" style={{ fontFamily: "var(--serif)" }}>Settings</h1>
 
-      <div className="mx-1 mb-3 text-[13px]" style={{ color: "var(--muted)" }}>
-        Appearance
-      </div>
-      <Link
-        href="/dashboard/upgrade"
-        className="mb-5 flex items-center justify-between rounded-2xl border p-4"
-        style={{
-          background: plan === "pro" ? "var(--surface)" : "color-mix(in srgb, var(--accent) 9%, var(--surface))",
-          borderColor: plan === "pro" ? "var(--border)" : "color-mix(in srgb, var(--accent) 26%, transparent)",
-        }}
-      >
-        <div className="flex items-center gap-3">
-          <span className="flex h-9 w-9 items-center justify-center rounded-xl text-white" style={{ background: "var(--accent)" }}>
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M12 3l1.7 4.7L18 9l-4.3 1.3L12 15l-1.7-4.7L6 9l4.3-1.3z" /></svg>
-          </span>
-          <div>
-            <div className="text-sm font-medium" style={{ color: plan === "pro" ? "var(--text)" : "var(--accent)" }}>
-              {plan === "pro" ? "Planizmo Pro" : "Upgrade to Planizmo Pro"}
-            </div>
-            <div className="text-[12.5px]" style={{ color: "var(--muted)" }}>
-              {plan === "pro" ? "All features unlocked." : "Timeline, unlimited AI planning, health sync, all themes."}
-            </div>
-          </div>
-        </div>
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 6l6 6-6 6" /></svg>
-      </Link>
-
-      <ThemeControls initialTheme={theme} initialAccent={accent} plan={plan} />
-
-      <div className="mx-1 mb-3 mt-6 text-[13px]" style={{ color: "var(--muted)" }}>
-        Layout
-      </div>
-      <ViewModeControl initial={viewMode} plan={plan} />
-      <p className="mx-1 mt-2 text-[12.5px] leading-relaxed" style={{ color: "var(--muted)" }}>
-        Reorder and resize widgets from the Habits and Lists pages — tap “Arrange”.
-      </p>
-
-      <div className="mx-1 mb-3 mt-6 text-[13px]" style={{ color: "var(--muted)" }}>
-        Account
-      </div>
-      <div
-        className="rounded-2xl border"
-        style={{ background: "var(--surface)", borderColor: "var(--border)" }}
-      >
+      {/* Account */}
+      <div className="mt-6" style={sectionLabel}>ACCOUNT</div>
+      <div className="mt-3 rounded-[14px] border" style={{ background: "var(--surface)", borderColor: "var(--border)" }}>
         <div className="flex items-center justify-between px-4 py-3.5">
-          <span className="text-sm" style={{ color: "var(--muted)" }}>
-            Plan
-          </span>
-          <span className="text-sm capitalize">{profile?.plan ?? "free"}</span>
+          <span className="text-[13.5px]" style={{ color: "var(--muted)" }}>Signed in as</span>
+          <span className="text-[13.5px] font-medium">{name}</span>
         </div>
         <div className="h-px" style={{ background: "var(--border)" }} />
         <div className="flex items-center justify-between px-4 py-3.5">
-          <span className="text-sm" style={{ color: "var(--muted)" }}>
-            Signed in as
-          </span>
-          <span className="text-sm">{profile?.displayName ?? "—"}</span>
+          <span className="text-[13.5px]" style={{ color: "var(--muted)" }}>Email</span>
+          <span className="text-[13.5px]">{email ?? "—"}</span>
         </div>
       </div>
-
-      <p
-        className="mx-1 mt-4 text-[13px] leading-relaxed"
-        style={{ color: "var(--muted)" }}
-      >
-        Your theme and accent are saved to your account and follow you across
-        devices.
-      </p>
-
-      <div className="mt-6 max-w-xs">
+      <div className="mt-3 max-w-xs">
         <SignOutButton variant="row" />
+      </div>
+
+      {/* Privacy & data */}
+      <div className="mt-8" style={sectionLabel}>PRIVACY &amp; DATA</div>
+      <p className="mb-3 mt-1.5 text-[13px] leading-relaxed" style={{ color: "var(--muted)" }}>
+        Your data is used only to run your daybook — never sold. Export, reset, or delete it any time.
+      </p>
+      <AccountPrivacy />
+
+      {/* Legal */}
+      <div className="mt-8 border-t pt-5" style={{ borderColor: "var(--border)" }}>
+        <div className="flex flex-wrap gap-4 text-[13px]">
+          <Link href="/privacy" style={{ color: "var(--accent)" }}>Privacy Policy</Link>
+          <Link href="/terms" style={{ color: "var(--accent)" }}>Terms of Use</Link>
+          <a href="mailto:emrecanoyunlar@gmail.com" style={{ color: "var(--muted)" }}>Contact</a>
+        </div>
       </div>
     </div>
   );
