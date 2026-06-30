@@ -46,6 +46,17 @@ export default function QuickCapture() {
 
   return (
     <>
+      {/* mobile quick-capture trigger (sidebar button is hidden on mobile) */}
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        aria-label="Quick capture"
+        className="fixed bottom-[68px] right-4 z-30 flex h-12 w-12 items-center justify-center rounded-full shadow-lg md:hidden"
+        style={{ background: "var(--accent)", color: "#F6F1E6" }}
+      >
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round"><path d="M12 5v14M5 12h14" /></svg>
+      </button>
+
       {saved && (
         <div className="fixed bottom-24 left-1/2 z-50 -translate-x-1/2 rounded-full px-4 py-2 text-[13px] md:bottom-6" style={{ background: "var(--accent)", color: "#F6F1E6" }}>
           Captured to your inbox
