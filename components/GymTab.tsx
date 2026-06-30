@@ -3,6 +3,7 @@
 import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import TrendChart, { type TrendPoint } from "@/components/TrendChart";
+import ActiveWorkout from "@/components/daybook/ActiveWorkout";
 import { addWorkoutAction, deleteWorkoutAction, logBodyMetricAction } from "@/lib/actions/gym";
 import { BODY_METRICS, type ClientBodyMetric, type ClientWorkout } from "@/lib/gym/types";
 
@@ -44,6 +45,7 @@ export default function GymTab({
 }) {
   const router = useRouter();
   const [section, setSection] = useState<Section>("overview");
+  const [active, setActive] = useState(false);
 
   useEffect(() => {
     const f = () => router.refresh();
@@ -51,9 +53,16 @@ export default function GymTab({
     return () => window.removeEventListener("planizmo:data-changed", f);
   }, [router]);
 
+  if (active) {
+    return <ActiveWorkout today={today} weightUnit={weightUnit} onExit={() => setActive(false)} />;
+  }
+
   return (
-    <div className="mx-auto max-w-5xl">
-      <h1 className="text-[28px] font-medium tracking-tight">Gym</h1>
+    <div className="mx-auto max-w-5xl px-6 py-7 md:px-8">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h1 className="text-[28px] font-medium tracking-tight">Gym</h1>
+        <button type="button" onClick={() => setActive(true)} className="rounded-full px-4 py-2 text-[13px] font-semibold" style={{ background: "var(--accent)", color: "#F6F1E6", cursor: "pointer" }}>Start workout</button>
+      </div>
 
       <div className="mt-4 flex gap-1.5 overflow-x-auto">
         {SECTIONS.map((s) => {

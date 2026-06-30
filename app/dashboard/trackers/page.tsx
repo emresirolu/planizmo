@@ -45,7 +45,7 @@ export default async function TrackersPage() {
     .filter((s) => s.points.length > 0);
 
   return (
-    <div>
+    <div className="px-6 py-7 md:px-8">
       <Dashboard
         heading="Trackers"
         plan={plan}

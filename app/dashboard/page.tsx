@@ -1,70 +1,73 @@
 import { redirect } from "next/navigation";
 import { auth } from "@/auth";
-import TodayHome, { type ChecklistRow, type LaterItem, type MainMove } from "@/components/TodayHome";
-import { getLogsSince, getMyProfile, listEventsBetween } from "@/lib/db/scoped";
+import TodayDaybook, { type GlanceItem } from "@/components/daybook/TodayDaybook";
+import { getMyProfile, listEventsBetween } from "@/lib/db/scoped";
 import { loadDashboard } from "@/lib/widgets/dashboard-data";
-import { isScheduledToday } from "@/lib/widgets/logic";
-import { mondayOf } from "@/lib/widgets/streak";
+import { addDays } from "@/lib/widgets/streak";
+import type { ClientEvent } from "@/lib/calendar/types";
 
-const GYMISH = /gym|workout|train|lift|exercise/i;
-const ROW_KINDS = ["habit", "counter", "health", "reading", "checklist"] as const;
+const ENERGY = ["—", "rough", "low", "steady", "good", "peak"];
 
-export default async function DashboardPage() {
+export default async function TodayPage() {
   const session = await auth();
   if (!session?.user) redirect("/signin");
 
-  const profile = await getMyProfile();
-  const tz = profile?.timezone || "UTC";
+  await getMyProfile();
   const data = await loadDashboard();
+  const today = data.today;
+  const tomorrow = addDays(today, 1);
 
-  const dateLabel = new Intl.DateTimeFormat("en-US", { timeZone: tz, weekday: "long", month: "short", day: "numeric" }).format(new Date());
-  const asOf = new Date(`${data.today}T00:00:00Z`);
+  const [todayRows, tomRows] = await Promise.all([
+    listEventsBetween(today, today),
+    listEventsBetween(tomorrow, tomorrow),
+  ]);
 
-  // This-week completion counts (for times_per_week trackers like "gym 5×/week").
-  const weekStart = mondayOf(data.today);
-  const weekLogs = await getLogsSince(weekStart);
-  const weekCount: Record<string, number> = {};
-  for (const l of weekLogs) {
-    if (l.completed && l.date >= weekStart && l.date <= data.today) weekCount[l.widgetId] = (weekCount[l.widgetId] ?? 0) + 1;
-  }
+  const blocks: ClientEvent[] = todayRows.map((e) => ({
+    id: e.id,
+    title: e.title,
+    date: e.date,
+    startTime: e.startTime ? e.startTime.slice(0, 5) : null,
+    endTime: e.endTime ? e.endTime.slice(0, 5) : null,
+    type: e.type,
+    source: e.source,
+    completed: e.completed,
+    linkedWidgetId: e.linkedWidgetId,
+  }));
 
-  const rows: ChecklistRow[] = [];
-  for (const w of data.widgets) {
-    if (!ROW_KINDS.includes(w.type as (typeof ROW_KINDS)[number])) continue;
-    if (!isScheduledToday(w.schedule, asOf)) continue;
-    const log = data.logs[w.id];
+  const nextId = blocks.find((b) => !b.completed)?.id ?? null;
+  const doneCount = blocks.filter((b) => b.completed).length;
 
-    if (w.type === "checklist") {
-      const cl = data.checklists[w.id];
-      const total = cl?.items.length ?? 0;
-      const done = cl?.checkedToday.length ?? 0;
-      rows.push({ widgetId: w.id, title: w.title, type: "checklist", current: done, target: Math.max(1, total), unit: null, completed: total > 0 && done >= total });
-    } else if (w.schedule === "times_per_week") {
-      const target = w.target ?? 1;
-      const current = weekCount[w.id] ?? 0;
-      rows.push({ widgetId: w.id, title: w.title, type: w.type as ChecklistRow["type"], current, target, unit: null, completed: current >= target });
-    } else if (w.target != null && (w.type === "counter" || w.type === "health" || w.type === "reading")) {
-      const current = log?.value ?? 0;
-      rows.push({ widgetId: w.id, title: w.title, type: w.type as ChecklistRow["type"], current, target: w.target, unit: w.unit, completed: log?.completed ?? current >= w.target });
-    } else {
-      const completed = log?.completed ?? false;
-      rows.push({ widgetId: w.id, title: w.title, type: w.type as ChecklistRow["type"], current: completed ? 1 : 0, target: 1, unit: null, completed });
-    }
-  }
+  // glance strip from the user's real trackers (— when not present)
+  const find = (re: RegExp, unit?: RegExp) =>
+    data.widgets.find((w) => re.test(w.title) || (unit && w.unit && unit.test(w.unit)));
+  const valOf = (id?: string) => (id ? data.logs[id]?.value ?? null : null);
 
-  // Main move: the next thing to do — prefer a gym/workout item, else the first incomplete.
-  const incomplete = rows.filter((r) => !r.completed && r.type !== "checklist");
-  const moveRow = incomplete.find((r) => GYMISH.test(r.title)) ?? incomplete[0] ?? null;
-  const mainMove: MainMove = moveRow
-    ? { title: moveRow.title, href: GYMISH.test(moveRow.title) ? "/dashboard/gym" : "/dashboard/trackers" }
-    : null;
+  const sleepW = find(/sleep/i, /hours?/i);
+  const moodW = data.widgets.find((w) => w.type === "mood");
+  const proteinW = find(/protein/i);
+  const gymBlock = blocks.find((b) => /gym|workout|train|lift/i.test(b.title));
 
-  const note = "A clear next step keeps your momentum going — knock this out while you're fresh.";
+  const glance: GlanceItem[] = [
+    { label: "SLEEP", value: valOf(sleepW?.id) != null ? `${valOf(sleepW?.id)}h` : "—" },
+    { label: "ENERGY", value: moodW && valOf(moodW.id) != null ? ENERGY[Math.max(0, Math.min(5, Math.round(valOf(moodW.id)!)))] : "—" },
+    { label: "PROTEIN", value: proteinW ? `${valOf(proteinW.id) ?? 0}/${proteinW.target ?? "—"}` : "—" },
+    { label: "GYM", value: gymBlock?.startTime ? gymBlock.startTime : "rest", accent: Boolean(gymBlock?.startTime) },
+    { label: "FOCUS", value: blocks.length ? `${doneCount}/${blocks.length}` : "0/0", accent: true },
+  ];
 
-  const eventRows = await listEventsBetween(data.today, data.today);
-  const later: LaterItem[] = eventRows
-    .filter((e) => !e.completed)
-    .map((e) => ({ id: e.id, title: e.title, startTime: e.startTime ? e.startTime.slice(0, 5) : null }));
+  const summary =
+    blocks.length === 0
+      ? "A blank page — shape your day."
+      : `${blocks.length} time block${blocks.length === 1 ? "" : "s"} today${doneCount ? ` · ${doneCount} done` : ""}.`;
 
-  return <TodayHome dateLabel={dateLabel} mainMove={mainMove} note={note} rows={rows} later={later} today={data.today} />;
+  const marginNote =
+    doneCount > 0
+      ? "Good momentum — keep the next block protected."
+      : "Start with the first block while you're fresh — the rest follows.";
+
+  const tom = tomRows.map((e) => ({ id: e.id, title: e.title, startTime: e.startTime ? e.startTime.slice(0, 5) : null }));
+
+  return (
+    <TodayDaybook summary={summary} glance={glance} blocks={blocks} nextId={nextId} marginNote={marginNote} tomorrow={tom} />
+  );
 }

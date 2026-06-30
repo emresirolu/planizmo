@@ -59,13 +59,15 @@ export default async function CalendarPage({
     .map((l) => `${l.widgetId}|${l.date}`);
 
   return (
-    <CalendarTab
-      events={events}
-      habits={habits}
-      completedHabitKeys={completedHabitKeys}
-      today={today}
-      focus={focus}
-      view={view}
-    />
+    <div className="px-6 py-7 md:px-8">
+      <CalendarTab
+        events={events}
+        habits={habits}
+        completedHabitKeys={completedHabitKeys}
+        today={today}
+        focus={focus}
+        view={view}
+      />
+    </div>
   );
 }

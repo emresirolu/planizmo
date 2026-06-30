@@ -1,17 +1,10 @@
 import { redirect } from "next/navigation";
 import { auth } from "@/auth";
-import { BottomNav, SideNav } from "@/components/nav";
-import TopBar from "@/components/TopBar";
-import AssistantRail from "@/components/AssistantRail";
-import OperatorBarSlot from "@/components/OperatorBarSlot";
-import PromoBanner from "@/components/PromoBanner";
-import { getMyProfile, getPlanContext } from "@/lib/db/scoped";
-
-function greetingForHour(hour: number): string {
-  if (hour < 12) return "Good morning";
-  if (hour < 18) return "Good afternoon";
-  return "Good evening";
-}
+import Sidebar from "@/components/daybook/Sidebar";
+import Header from "@/components/daybook/Header";
+import MobileNav from "@/components/daybook/MobileNav";
+import QuickCapture from "@/components/daybook/QuickCapture";
+import { getMyProfile, listMyWidgets } from "@/lib/db/scoped";
 
 export default async function DashboardLayout({
   children,
@@ -22,42 +15,27 @@ export default async function DashboardLayout({
   if (!session?.user) redirect("/signin");
 
   const profile = await getMyProfile();
-  const tz = profile?.timezone || "UTC";
+  // New users (not onboarded, no data yet) go through "Make this daybook yours".
+  if (!profile?.onboardedAt) {
+    const widgets = await listMyWidgets();
+    if (widgets.length === 0) redirect("/onboarding");
+  }
   const name =
     profile?.displayName?.split(" ")[0] ??
     session.user.name?.split(" ")[0] ??
-    "there";
-
-  const now = new Date();
-  const hour = Number(new Intl.DateTimeFormat("en-US", { timeZone: tz, hour: "numeric", hour12: false }).format(now));
-  const dateLabel = new Intl.DateTimeFormat("en-US", { timeZone: tz, month: "short", day: "numeric", year: "numeric" }).format(now);
-  const weekday = new Intl.DateTimeFormat("en-US", { timeZone: tz, weekday: "long" }).format(now);
-  const greeting = greetingForHour(hour);
-
-  const planCtx = await getPlanContext();
-  const showPromo = planCtx.promo && !(planCtx.raw === "pro" || planCtx.owner);
+    "You";
 
   return (
-    <div className="flex min-h-dvh">
-      <SideNav name={name} />
-
+    <div className="pz-paper flex min-h-dvh" style={{ background: "var(--canvas)" }}>
+      <Sidebar name={name} />
       <div className="flex min-h-dvh min-w-0 flex-1 flex-col">
-        <TopBar dateLabel={dateLabel} weekday={weekday} />
-        <main className="pz-sc flex-1 overflow-y-auto px-4 py-5 md:px-8 md:py-6">
-          {showPromo && (
-            <div className="mx-auto mb-2 w-full max-w-5xl">
-              <PromoBanner until={planCtx.promoUntil} />
-            </div>
-          )}
-          <div className="mb-5 empty:hidden">
-            <OperatorBarSlot />
-          </div>
+        <Header />
+        <main className="pz-sc flex-1 overflow-y-auto" style={{ background: "var(--paper)" }}>
           {children}
         </main>
-        <BottomNav />
+        <MobileNav />
       </div>
-
-      <AssistantRail name={name} greeting={greeting} />
+      <QuickCapture />
     </div>
   );
 }

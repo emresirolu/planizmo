@@ -130,6 +130,10 @@ export const profiles = pgTable("profiles", {
   accentColor: text("accent_color").notNull().default("#4F6BED"),
   plan: planEnum("plan").notNull().default("free"),
   viewMode: viewModeEnum("view_mode").notNull().default("flow"),
+  // Onboarding ("Make this daybook yours") completion + captured preferences.
+  onboardedAt: timestamp("onboarded_at", { withTimezone: true }),
+  energyPattern: text("energy_pattern"),
+  coachingStyle: text("coaching_style"),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),

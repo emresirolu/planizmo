@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { Inter } from "next/font/google";
+import { Inter, Newsreader, JetBrains_Mono, Caveat } from "next/font/google";
 import type { CSSProperties } from "react";
 import { getThemeSettings } from "@/lib/theme/server";
 import Pwa from "@/components/Pwa";
@@ -7,8 +7,29 @@ import "./globals.css";
 
 const inter = Inter({
   subsets: ["latin"],
-  weight: ["400", "500", "600"],
+  weight: ["400", "500", "600", "700"],
   variable: "--font-inter",
+  display: "swap",
+});
+
+// Editorial daybook type system (cream/sage identity).
+const newsreader = Newsreader({
+  subsets: ["latin"],
+  weight: ["400", "500", "600"],
+  style: ["normal", "italic"],
+  variable: "--font-serif",
+  display: "swap",
+});
+const jetbrainsMono = JetBrains_Mono({
+  subsets: ["latin"],
+  weight: ["400", "500", "600"],
+  variable: "--font-mono",
+  display: "swap",
+});
+const caveat = Caveat({
+  subsets: ["latin"],
+  weight: ["500", "600"],
+  variable: "--font-hand",
   display: "swap",
 });
 
@@ -33,7 +54,7 @@ export default async function RootLayout({
     <html
       lang="en"
       data-theme={theme}
-      className={inter.variable}
+      className={`${inter.variable} ${newsreader.variable} ${jetbrainsMono.variable} ${caveat.variable}`}
       style={{ "--accent": accent } as CSSProperties}
       suppressHydrationWarning
     >
