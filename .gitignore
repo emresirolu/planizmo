@@ -15,10 +15,14 @@
 # debug
 npm-debug.log*
 
-# local env files
+# local env files — never commit real secrets
 .env
+.env.local
+.env.production
 .env*.local
-# keep the documented template
+.env*
+# keep the documented template (negation MUST come after the .env* globs above,
+# otherwise a later pattern would re-ignore it)
 !.env.example
 
 # vercel
@@ -27,5 +31,3 @@ npm-debug.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
-
-.env*
