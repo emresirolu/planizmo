@@ -71,31 +71,43 @@ export async function addPresetWidget(key: string): Promise<AddResult> {
 const SCHEDULES: Schedule[] = ["daily", "weekdays", "times_per_week"];
 const SIZES: WidgetSize[] = ["1x1", "2x1", "2x2"];
 
+// Tracker kinds a user can build from the custom form. "counter" is a numeric
+// progress tracker (a value toward a target); "habit" is a yes/no daily toggle.
+const CUSTOM_TYPES = ["counter", "habit"] as const;
+type CustomType = (typeof CUSTOM_TYPES)[number];
+
 export async function addCustomWidget(input: {
   title: string;
   unit: string;
   target: number | null;
   schedule: Schedule;
+  type?: CustomType;
 }): Promise<AddResult> {
   const title = input.title.trim();
   if (!title) return { ok: false, error: "Give it a title" };
   if (!SCHEDULES.includes(input.schedule))
     return { ok: false, error: "Invalid schedule" };
+  const type: CustomType =
+    input.type && CUSTOM_TYPES.includes(input.type) ? input.type : "counter";
+  const isHabit = type === "habit";
   const target =
     input.target != null && Number.isFinite(input.target) && input.target > 0
       ? Math.round(input.target)
       : null;
   try {
     const w = await addWidget({
-      type: "counter",
+      type,
       title: title.slice(0, 60),
-      icon: "counter",
+      icon: isHabit ? "checklist" : "counter",
       schedule: input.schedule,
-      target,
-      unit: input.unit.trim().slice(0, 20) || null,
+      // Habits are yes/no; a numeric daily target only applies to number
+      // trackers (a weekly habit keeps its "N× / week" target).
+      target: isHabit && input.schedule !== "times_per_week" ? null : target,
+      unit: isHabit ? null : input.unit.trim().slice(0, 20) || null,
       size: "1x1",
     });
     revalidatePath("/dashboard");
+    revalidatePath("/dashboard/trackers");
     return { ok: true, widget: toClientWidget(w) };
   } catch {
     return { ok: false, error: "Could not add widget" };

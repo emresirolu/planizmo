@@ -17,6 +17,7 @@ export default function AddWidgetSheet({ onClose, onAdded }: Props) {
   const [showCustom, setShowCustom] = useState(false);
 
   // custom form state
+  const [ctype, setCtype] = useState<"counter" | "habit">("counter");
   const [title, setTitle] = useState("");
   const [unit, setUnit] = useState("");
   const [target, setTarget] = useState("");
@@ -62,6 +63,7 @@ export default function AddWidgetSheet({ onClose, onAdded }: Props) {
         unit,
         target: target ? Number(target) : null,
         schedule,
+        type: ctype,
       });
       if (res.ok) onAdded(res.widget);
       else setError(res.error);
@@ -81,7 +83,7 @@ export default function AddWidgetSheet({ onClose, onAdded }: Props) {
       >
         <div className="mb-4 flex items-center justify-between">
           <h2 className="text-lg font-medium">
-            {showCustom ? "Custom counter" : "Add a widget"}
+            {showCustom ? "Custom tracker" : "Add a widget"}
           </h2>
           <button
             type="button"
@@ -150,36 +152,64 @@ export default function AddWidgetSheet({ onClose, onAdded }: Props) {
 
         {showCustom && (
           <div className="flex flex-col gap-3">
+            <Field label="Type">
+              <div className="grid grid-cols-2 gap-2">
+                {([
+                  ["counter", "Number", "count toward a goal"],
+                  ["habit", "Habit", "yes / no each day"],
+                ] as const).map(([val, label, hint]) => {
+                  const on = ctype === val;
+                  return (
+                    <button
+                      key={val}
+                      type="button"
+                      onClick={() => setCtype(val)}
+                      className="rounded-xl border px-3 py-2 text-left"
+                      style={{
+                        borderColor: on ? "var(--accent)" : "var(--border)",
+                        background: on ? "color-mix(in srgb, var(--accent) 10%, transparent)" : "var(--surface2)",
+                        cursor: "pointer",
+                      }}
+                    >
+                      <span className="block text-sm font-medium" style={{ color: on ? "var(--accent)" : "var(--text)" }}>{label}</span>
+                      <span className="block text-[11.5px]" style={{ color: "var(--muted)" }}>{hint}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </Field>
             <Field label="Title">
               <input
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
-                placeholder="e.g. Pushups"
+                placeholder={ctype === "habit" ? "e.g. Read 20 min" : "e.g. Steps"}
                 className="pz-in w-full rounded-xl border px-3 py-2.5 text-sm outline-none"
                 style={{ background: "var(--surface2)", borderColor: "var(--border)", color: "var(--text)" }}
               />
             </Field>
-            <div className="flex gap-3">
-              <Field label="Unit (optional)">
-                <input
-                  value={unit}
-                  onChange={(e) => setUnit(e.target.value)}
-                  placeholder="reps"
-                  className="pz-in w-full rounded-xl border px-3 py-2.5 text-sm outline-none"
-                  style={{ background: "var(--surface2)", borderColor: "var(--border)", color: "var(--text)" }}
-                />
-              </Field>
-              <Field label="Daily target">
-                <input
-                  value={target}
-                  onChange={(e) => setTarget(e.target.value.replace(/[^0-9]/g, ""))}
-                  inputMode="numeric"
-                  placeholder="50"
-                  className="pz-in w-full rounded-xl border px-3 py-2.5 text-sm outline-none"
-                  style={{ background: "var(--surface2)", borderColor: "var(--border)", color: "var(--text)" }}
-                />
-              </Field>
-            </div>
+            {ctype === "counter" && (
+              <div className="flex gap-3">
+                <Field label="Unit (optional)">
+                  <input
+                    value={unit}
+                    onChange={(e) => setUnit(e.target.value)}
+                    placeholder="steps"
+                    className="pz-in w-full rounded-xl border px-3 py-2.5 text-sm outline-none"
+                    style={{ background: "var(--surface2)", borderColor: "var(--border)", color: "var(--text)" }}
+                  />
+                </Field>
+                <Field label="Daily target">
+                  <input
+                    value={target}
+                    onChange={(e) => setTarget(e.target.value.replace(/[^0-9]/g, ""))}
+                    inputMode="numeric"
+                    placeholder="10000"
+                    className="pz-in w-full rounded-xl border px-3 py-2.5 text-sm outline-none"
+                    style={{ background: "var(--surface2)", borderColor: "var(--border)", color: "var(--text)" }}
+                  />
+                </Field>
+              </div>
+            )}
             <Field label="Schedule">
               <select
                 value={schedule}

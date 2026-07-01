@@ -257,9 +257,11 @@ export default function WidgetCard({
         </div>
       )}
 
-      {/* streak/strength (space M3 left for it) */}
+      {/* streak/strength (space M3 left for it). The weekly heatmap squares are a
+          habit/boolean visualization — only show them for toggle (habit) trackers,
+          never for numeric steppers (steps, protein…), regardless of widget size. */}
       {isStreakType(widget.type) && streak && (
-        <StreakFooter stats={streak} heatcells={heatcells} showHeatmap={wide} />
+        <StreakFooter stats={streak} heatcells={heatcells} showHeatmap={wide && mode === "toggle"} />
       )}
 
       {error && (
