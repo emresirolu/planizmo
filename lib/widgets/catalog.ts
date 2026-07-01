@@ -106,14 +106,14 @@ export const PRESETS: Preset[] = [
   },
   {
     key: "custom",
-    title: "Custom counter",
+    title: "Custom tracker",
     icon: "counter",
     type: "counter",
     schedule: "daily",
     target: 1,
     unit: null,
     size: "1x1",
-    blurb: "Set your own title, unit & target",
+    blurb: "Track a habit or a number, your way",
     custom: true,
   },
 ];

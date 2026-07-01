@@ -21,6 +21,7 @@ export default function ActiveWorkout({ today, weightUnit, onExit }: { today: st
   const [log, setLog] = useState<LoggedSet[]>([]);
   const [rest, setRest] = useState(0);
   const [running, setRunning] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
   const [pending, start] = useTransition();
   const timer = useRef<number | null>(null);
 
@@ -43,12 +44,19 @@ export default function ActiveWorkout({ today, weightUnit, onExit }: { today: st
 
   function finish() {
     if (log.length === 0) { onExit(); return; }
+    setErr(null);
     start(async () => {
-      await addWorkoutAction({
+      const res = await addWorkoutAction({
         date: today,
         name: name.trim() || "Workout",
         sets: log.map((s) => ({ exercise: s.exercise, sets: 1, reps: s.reps, weight: s.weight })),
       });
+      // Only leave the session once the workout is actually persisted — otherwise
+      // surface the error and keep the logged sets so nothing is silently lost.
+      if (!res.ok) {
+        setErr(res.error || "Couldn't save your workout — try again.");
+        return;
+      }
       router.refresh();
       onExit();
     });
@@ -114,7 +122,11 @@ export default function ActiveWorkout({ today, weightUnit, onExit }: { today: st
 
       <div className="mt-5 flex items-center gap-3">
         <button type="button" onClick={finish} disabled={pending} className="rounded-[10px] px-6 py-3 text-[15px] font-bold disabled:opacity-60" style={{ background: "var(--accent)", color: "#F6F1E6", cursor: "pointer" }}>{pending ? "Saving…" : "Finish workout"}</button>
-        <span style={{ fontFamily: "var(--hand)", fontSize: 18, color: "var(--accent)" }}>One more rep than last time — that&apos;s the whole game.</span>
+        {err ? (
+          <span className="text-[13px]" style={{ color: "var(--alert)" }}>{err}</span>
+        ) : (
+          <span style={{ fontFamily: "var(--hand)", fontSize: 18, color: "var(--accent)" }}>One more rep than last time — that&apos;s the whole game.</span>
+        )}
       </div>
     </div>
   );

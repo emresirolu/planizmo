@@ -18,6 +18,15 @@ async function resolveDate(input?: string | null): Promise<string> {
   return todayInTimeZone(await getMyTimezone());
 }
 
+/** Invalidate every surface that reads workout data so a log made on one device
+ *  (e.g. mobile) is reflected everywhere it's shown, not just the Gym tab. */
+function revalidateWorkoutSurfaces(): void {
+  revalidatePath("/dashboard/gym");
+  revalidatePath("/dashboard/review");
+  revalidatePath("/dashboard/health");
+  revalidatePath("/dashboard");
+}
+
 /** Coerce a free-text numeric field; empty -> null, invalid -> null. */
 function num(v: unknown): number | null {
   if (v == null || v === "") return null;
@@ -98,7 +107,7 @@ export async function addWorkoutAction(input: {
       }
     }
 
-    revalidatePath("/dashboard/gym");
+    revalidateWorkoutSurfaces();
     return {
       ok: true,
       workout: {
@@ -118,7 +127,7 @@ export async function addWorkoutAction(input: {
 export async function deleteWorkoutAction(workoutId: string): Promise<{ ok: boolean }> {
   try {
     const ok = await deleteWorkout(workoutId);
-    if (ok) revalidatePath("/dashboard/gym");
+    if (ok) revalidateWorkoutSurfaces();
     return { ok };
   } catch {
     return { ok: false };
