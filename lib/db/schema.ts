@@ -12,7 +12,9 @@ import {
   primaryKey,
   uniqueIndex,
   pgEnum,
+  check,
 } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
 import type { AdapterAccountType } from "next-auth/adapters";
 
 /* ============================================================
@@ -134,6 +136,13 @@ export const profiles = pgTable("profiles", {
   onboardedAt: timestamp("onboarded_at", { withTimezone: true }),
   energyPattern: text("energy_pattern"),
   coachingStyle: text("coaching_style"),
+  // Referral program (temporary Pro rewards; never gates the free tier).
+  // referralCode: this user's own invite code. referredByCode: the code they
+  // signed up through (set once). proUntil: the current temporary-Pro expiry
+  // (from a friend trial or a referrer milestone) — the effective plan reads it.
+  referralCode: text("referral_code").unique(),
+  referredByCode: text("referred_by_code"),
+  proUntil: timestamp("pro_until", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),
@@ -518,6 +527,57 @@ export const calendarEvents = pgTable("calendar_events", {
     onDelete: "set null",
   }),
   completed: boolean("completed").notNull().default(false),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});
+
+/* ============================================================
+ * Referrals — invite a friend; both sides earn temporary Pro.
+ * Never gates the free tier; only unlocks time-boxed Pro rewards.
+ * ==========================================================*/
+
+// One row per attributed referral. `referred_user_id` is UNIQUE so a friend can
+// only ever be attributed once. status: pending -> completed (friend onboarded,
+// friend trial granted) -> rewarded (counted toward a referrer milestone).
+export const referrals = pgTable(
+  "referrals",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    referrerUserId: text("referrer_user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    referredUserId: text("referred_user_id")
+      .unique()
+      .references(() => users.id, { onDelete: "cascade" }),
+    referralCode: text("referral_code").notNull(),
+    status: text("status").notNull().default("pending"),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    completedAt: timestamp("completed_at", { withTimezone: true }),
+  },
+  (t) => [
+    check(
+      "referrals_status_check",
+      sql`${t.status} in ('pending', 'completed', 'rewarded')`,
+    ),
+  ],
+);
+
+// Ledger of granted rewards (audit trail behind profiles.pro_until). Each row is
+// one grant: a friend trial or a referrer milestone month.
+export const userRewards = pgTable("user_rewards", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  userId: text("user_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  rewardType: text("reward_type").notNull(),
+  startsAt: timestamp("starts_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+  endsAt: timestamp("ends_at", { withTimezone: true }),
+  source: text("source"),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),

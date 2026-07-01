@@ -15,11 +15,13 @@ import {
   layouts,
   logs,
   profiles,
+  referrals,
   savingsGoals,
   streaks,
   tasks,
   timeBlocks,
   transactions,
+  userRewards,
   users,
   weekPlans,
   widgets,
@@ -151,22 +153,33 @@ async function myHealthProvider(): Promise<"mock" | "fitbit" | "none"> {
  * ------------------------------------------------------------------------- */
 
 export type PlanContext = {
-  effective: Plan; // what gating uses (promo/owner aware)
+  effective: Plan; // what gating uses (promo/owner/trial aware)
   raw: Plan; // the real persisted plan
   promo: boolean; // effective Pro is from the launch promo
   owner: boolean; // effective Pro is from OWNER_EMAILS
+  trial: boolean; // effective Pro is from an active referral reward (pro_until)
+  proUntil: string | null; // ISO expiry of the temporary-Pro reward, if active
   promoUntil: string | null;
 };
 
-/** Full plan picture, including the computed promo/owner overrides (no DB writes). */
+/** Full plan picture, including the computed promo/owner/trial overrides (no DB writes). */
 export async function getPlanContext(): Promise<PlanContext> {
   const profile = await getMyProfile();
   const raw = (profile?.plan as Plan) ?? "free";
   const email = await getMyEmail();
   const owner = isOwnerEmail(email);
   const promo = promoActive();
-  const effective: Plan = owner || promo ? "pro" : raw;
-  return { effective, raw, promo, owner, promoUntil: promoUntilLabel() };
+  const trial = profile?.proUntil ? profile.proUntil.getTime() > Date.now() : false;
+  const effective: Plan = owner || promo || trial || raw === "pro" ? "pro" : raw;
+  return {
+    effective,
+    raw,
+    promo,
+    owner,
+    trial,
+    proUntil: trial && profile?.proUntil ? profile.proUntil.toISOString() : null,
+    promoUntil: promoUntilLabel(),
+  };
 }
 
 /** Effective plan (promo/owner aware) — the single source of truth for gating. */
@@ -1428,6 +1441,7 @@ export async function exportMyData(): Promise<Record<string, unknown>> {
   const [
     goalRows, widgetRows, logRows, streakRows, taskRows, clItems, clLogs,
     timeBlockRows, eventRows, weekPlanRows, bodyRows, workoutRows, setRows, msgRows,
+    referralRows, rewardRows,
   ] = await Promise.all([
     db.select().from(goals).where(eq(goals.userId, userId)),
     db.select().from(widgets).where(eq(widgets.userId, userId)),
@@ -1443,6 +1457,8 @@ export async function exportMyData(): Promise<Record<string, unknown>> {
     db.select().from(workouts).where(eq(workouts.userId, userId)),
     db.select().from(workoutSets).where(eq(workoutSets.userId, userId)),
     db.select().from(assistantMessages).where(eq(assistantMessages.userId, userId)),
+    db.select().from(referrals).where(eq(referrals.referrerUserId, userId)),
+    db.select().from(userRewards).where(eq(userRewards.userId, userId)),
   ]);
 
   return {
@@ -1464,6 +1480,8 @@ export async function exportMyData(): Promise<Record<string, unknown>> {
     workouts: workoutRows,
     workoutSets: setRows,
     aiHistory: msgRows,
+    referrals: referralRows,
+    rewards: rewardRows,
   };
 }
 

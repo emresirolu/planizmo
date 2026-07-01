@@ -1,12 +1,15 @@
 import Link from "next/link";
 import { SignOutButton } from "@/components/nav";
 import AccountPrivacy from "@/components/daybook/AccountPrivacy";
+import InviteFriends from "@/components/daybook/InviteFriends";
 import { getMyEmail, getMyProfile } from "@/lib/db/scoped";
+import { getReferralStats } from "@/lib/referrals";
 
 export default async function SettingsPage() {
   const profile = await getMyProfile();
   const email = await getMyEmail();
   const name = profile?.displayName ?? "—";
+  const referral = await getReferralStats();
 
   const sectionLabel = { fontFamily: "var(--mono)", fontSize: 10, letterSpacing: ".16em", color: "var(--faint)" } as const;
 
@@ -29,6 +32,19 @@ export default async function SettingsPage() {
       </div>
       <div className="mt-3 max-w-xs">
         <SignOutButton variant="row" />
+      </div>
+
+      {/* Invite friends */}
+      <div className="mt-8" style={sectionLabel}>INVITE FRIENDS</div>
+      <div className="mt-3">
+        <InviteFriends
+          link={referral.link}
+          completed={referral.completed}
+          towardNext={referral.towardNext}
+          perMilestone={referral.perMilestone}
+          monthsEarned={referral.monthsEarned}
+          atCap={referral.atCap}
+        />
       </div>
 
       {/* Privacy & data */}

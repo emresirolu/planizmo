@@ -11,6 +11,7 @@ import {
   profiles,
 } from "@/lib/db/schema";
 import { DEFAULT_ACCENT, DEFAULT_THEME } from "@/lib/theme/themes";
+import { ensureReferralCode } from "@/lib/referrals/allocate";
 
 const providers: NextAuthConfig["providers"] = [
   // Reads AUTH_GOOGLE_ID / AUTH_GOOGLE_SECRET from the environment.
@@ -57,6 +58,12 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           accentColor: DEFAULT_ACCENT,
         })
         .onConflictDoNothing();
+      // Give every new profile a referral code (best-effort — never block sign-up).
+      try {
+        await ensureReferralCode(user.id);
+      } catch {
+        /* backfilled lazily on first Settings visit if this fails */
+      }
     },
   },
 });

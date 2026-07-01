@@ -71,6 +71,13 @@
       "when": 1782794913125,
       "tag": "0009_tense_meteorite",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1782879484557,
+      "tag": "0010_swift_tempest",
+      "breakpoints": true
     }
   ]
 }

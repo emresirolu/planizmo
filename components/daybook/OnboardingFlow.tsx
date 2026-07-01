@@ -25,6 +25,7 @@ export default function OnboardingFlow() {
   const [coaching, setCoaching] = useState("Direct");
   const [pending, start] = useTransition();
   const [ready, setReady] = useState<{ goals: string[]; trackers: string[]; metrics: string[] } | null>(null);
+  const [trialDays, setTrialDays] = useState<number | null>(null);
   const [err, setErr] = useState<string | null>(null);
 
   function toggleArea(a: string) {
@@ -34,7 +35,7 @@ export default function OnboardingFlow() {
     setErr(null);
     start(async () => {
       const res = await generateDaybookAction({ areas, goals, routine, energy, coaching });
-      if (res.ok) { setReady({ goals: res.goals, trackers: res.trackers, metrics: res.metrics }); setStep(6); }
+      if (res.ok) { setReady({ goals: res.goals, trackers: res.trackers, metrics: res.metrics }); setTrialDays(res.referralTrialDays); setStep(6); }
       else setErr(res.error);
     });
   }
@@ -138,6 +139,17 @@ export default function OnboardingFlow() {
                 <div className="mx-auto flex h-[50px] w-[50px] items-center justify-center rounded-[13px]" style={{ background: "color-mix(in srgb, var(--accent) 14%, transparent)", color: "var(--accent)" }}><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6 9 17l-5-5" /></svg></div>
                 <div className="mt-4" style={{ fontFamily: "var(--serif)", fontSize: 34, fontWeight: 600, letterSpacing: "-.01em" }}>Your daybook is ready.</div>
                 <div className="mt-2 text-[14.5px]" style={{ color: "var(--muted)" }}>Here&apos;s what Planizmo set up for you — all editable later.</div>
+                {trialDays != null && (
+                  <div
+                    className="mx-auto mt-4 inline-flex items-center gap-2 rounded-[11px] px-4 py-2.5"
+                    style={{ background: "color-mix(in srgb, var(--accent) 12%, var(--surface))", border: "1px solid color-mix(in srgb, var(--accent) 40%, var(--border))" }}
+                  >
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6 9 17l-5-5" /></svg>
+                    <span className="text-[13.5px] font-medium" style={{ color: "var(--accent)" }}>
+                      Your {trialDays}-day Pro trial is unlocked.
+                    </span>
+                  </div>
+                )}
               </div>
               <div className="mt-[26px] grid gap-[14px]" style={{ gridTemplateColumns: "repeat(auto-fit,minmax(300px,1fr))" }}>
                 <div className="rounded-[13px] p-[18px]" style={{ background: "var(--surface)", border: "1px solid var(--border)" }}>
